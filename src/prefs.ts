@@ -103,7 +103,7 @@ const AboutPage = GObject.registerClass(
     },
 );
 
-export default class TrialExtPrefs extends ExtensionPreferences {
+export default class EthCalPrefs extends ExtensionPreferences {
     override fillPreferencesWindow(
         window: Adw.PreferencesWindow & {
             _settings: Gio.Settings;
