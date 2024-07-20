@@ -7,7 +7,7 @@ if [ ! -f metadata.json ]; then
         exit 1
 fi
 
-if [ ! -f metadata.json ]; then
+if [ -z "$PROJECT_NAME" ]; then
         echo "metadata.json does not contain name"
         exit 1
 fi
