@@ -9,6 +9,7 @@
     "build": "./scripts/build.sh",
     "build:dev": "./scripts/build.sh --unsafe-reload",
     "build:install": "./scripts/build.sh --install",
+    "log": "./scripts/log.sh",
     "check:lint": "eslint --no-error-on-unmatched-pattern src/**/*.{js,ts}",
     "check:format": "prettier --check --no-error-on-unmatched-pattern src/**/*.{js,ts}",
     "check:types": "tsc -noEmit"
