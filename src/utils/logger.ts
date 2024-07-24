@@ -1,3 +1,5 @@
-export const logger = (message: string) => {
+type LogType = string | string[] | number | object;
+
+export const logger = (message: LogType) => {
     console.log('EthCal: ' + message);
 };
