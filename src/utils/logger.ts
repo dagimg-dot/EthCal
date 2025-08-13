@@ -1,5 +1,5 @@
 type LogType = string | string[] | number | object;
 
 export const logger = (message: LogType) => {
-    console.log('EthCal: ' + message);
+    console.log(`EthCal: ${message}`);
 };

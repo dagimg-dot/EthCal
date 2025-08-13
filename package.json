@@ -6,26 +6,25 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
+    "dev": "bun check && ./scripts/build.sh -r",
+    "dev:nested": "bun build:install && env MUTTER_DEBUG_DUMMY_MODE_SPECS=1500x900 dbus-run-session -- gnome-shell --nested --wayland",
     "build": "./scripts/build.sh",
-    "build:dev": "./scripts/build.sh --unsafe-reload",
-    "build:install": "./scripts/build.sh --install",
+    "build:install": "bun check && ./scripts/build.sh --install",
+    "setup": "./scripts/setup-vm.sh",
     "log": "./scripts/log.sh -f",
     "log:all": "./scripts/log.sh",
-    "check:lint": "eslint --no-error-on-unmatched-pattern src/**/*.{js,ts}",
-    "check:format": "prettier --check --no-error-on-unmatched-pattern src/**/*.{js,ts}",
+    "lint": "biome lint --write .",
+    "lint:fix": "biome lint --write --unsafe .",
+    "format": "biome format --write .",
+    "check": "biome check --write .",
     "check:types": "tsc -noEmit"
   },
   "devDependencies": {
-    "@eslint/js": "^9.6.0",
-    "@girs/gjs": "^4.0.0-beta.5",
-    "@girs/gnome-shell": "^46.0.0-beta8",
-    "@types/eslint__js": "^8.42.3",
-    "esbuild": "^0.21.5",
-    "esbuild-plugin-tsc": "^0.4.0",
-    "eslint": "^8.57.0",
-    "globals": "^15.6.0",
-    "prettier": "^3.2.5",
-    "typescript": "^5.5.2",
-    "typescript-eslint": "^7.14.1"
+    "@biomejs/biome": "^2.1.4",
+    "@girs/gjs": "^4.0.0-beta.25",
+    "@girs/gnome-shell": "^48.0.2",
+    "esbuild": "^0.25.9",
+    "esbuild-plugin-tsc": "^0.5.0",
+    "typescript": "^5.9.2"
   }
 }

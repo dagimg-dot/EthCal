@@ -10,8 +10,5 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": [
-    "ambient.d.ts",
-    "src/**/*.ts"
-  ]
+  "include": ["ambient.d.ts", "src/**/*.ts"]
 }

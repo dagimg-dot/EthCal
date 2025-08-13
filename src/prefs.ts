@@ -1,15 +1,15 @@
-import GObject from 'gi://GObject';
-import GLib from 'gi://GLib';
-import Gio from 'gi://Gio';
-import Gtk from 'gi://Gtk';
-import Adw from 'gi://Adw';
+import Adw from "gi://Adw";
+import Gio from "gi://Gio";
+import GLib from "gi://GLib";
+import GObject from "gi://GObject";
+import type Gtk from "gi://Gtk";
 
-import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
-import type { ExtensionMetadata } from '@girs/gnome-shell/extensions/extension';
-import { logger } from './utils/logger.js';
+import type { ExtensionMetadata } from "@girs/gnome-shell/extensions/extension";
+import { logger } from "./utils/logger.js";
 
-const LICENSE = 'You can check out the LICENSE in the github page 🙂';
+const LICENSE = "You can check out the LICENSE in the github page 🙂";
 
 const getTemplate = (name: string): string => {
     const uri = GLib.uri_resolve_relative(
@@ -29,21 +29,18 @@ interface GeneralPageChildren {
 
 const GeneralPage = GObject.registerClass(
     {
-        GTypeName: 'TypescriptTemplateGeneralPage',
-        Template: getTemplate('GeneralPage'),
-        InternalChildren: ['sayHello'],
+        GTypeName: "TypescriptTemplateGeneralPage",
+        Template: getTemplate("GeneralPage"),
+        InternalChildren: ["sayHello"],
     },
-    class TypescriptTemplateGeneralPage extends Adw.PreferencesPage {
-        constructor(settings: Gio.Settings) {
-            super();
-
-            logger('This is from prefs');
-
+    class GeneralPage extends Adw.PreferencesPage {
+        bindSettings(settings: Gio.Settings) {
+            logger("This is from prefs");
             const children = this as unknown as GeneralPageChildren;
             settings.bind(
-                'say-hello',
+                "say-hello",
                 children._sayHello,
-                'active',
+                "active",
                 Gio.SettingsBindFlags.DEFAULT,
             );
         }
@@ -60,19 +57,18 @@ interface AboutPageChildren {
 
 const AboutPage = GObject.registerClass(
     {
-        GTypeName: 'TypescriptTemplateAboutPage',
-        Template: getTemplate('AboutPage'),
+        GTypeName: "TypescriptTemplateAboutPage",
+        Template: getTemplate("AboutPage"),
         InternalChildren: [
-            'extensionName',
-            'extensionDescription',
-            'linkGithub',
-            'linkIssues',
-            'extensionLicense',
+            "extensionName",
+            "extensionDescription",
+            "linkGithub",
+            "linkIssues",
+            "extensionLicense",
         ],
     },
-    class TypescriptTemplateAboutPage extends Adw.PreferencesPage {
-        constructor(metadata: ExtensionMetadata) {
-            super();
+    class AboutPage extends Adw.PreferencesPage {
+        setMetadata(metadata: ExtensionMetadata) {
             const children = this as unknown as AboutPageChildren;
             children._extensionName.set_text(metadata.name);
             children._extensionDescription.set_text(metadata.description);
@@ -89,15 +85,23 @@ const AboutPage = GObject.registerClass(
 );
 
 export default class EthCalPrefs extends ExtensionPreferences {
-    override fillPreferencesWindow(
-        window: Adw.PreferencesWindow & {
+    override async fillPreferencesWindow(
+        window: Adw.PreferencesWindow,
+    ): Promise<void> {
+        const prefsWindow = window as Adw.PreferencesWindow & {
             _settings: Gio.Settings;
-        },
-    ): void {
+        };
+
         // Create a settings object and bind the row to our key.
         // Attach the settings object to the window to keep it alive while the window is alive.
-        window._settings = this.getSettings();
-        window.add(new GeneralPage(window._settings));
-        window.add(new AboutPage(this.metadata));
+        prefsWindow._settings = this.getSettings();
+
+        const generalPage = new GeneralPage();
+        generalPage.bindSettings(prefsWindow._settings);
+        prefsWindow.add(generalPage);
+
+        const aboutPage = new AboutPage();
+        aboutPage.setMetadata(this.metadata);
+        prefsWindow.add(aboutPage);
     }
 }

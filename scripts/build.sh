@@ -9,6 +9,8 @@
 function compile_resources() {
 	echo "Creating resource xml..."
 
+	mkdir -p "$(dirname "$RESOURCE_XML")"
+
 	cat <<-EOF > "$RESOURCE_XML"
 		<?xml version='1.0' encoding='UTF-8'?>
 		<gresources>
@@ -46,8 +48,8 @@ function compile_translations() {
 function build_extension_package() {
 	# Compile TypeScript files, if used
 	if [ "$USING_TYPESCRIPT" = "true" ]; then
-		if ! (command -v npm &> /dev/null); then
-			echo "ERROR: npm isn't installed. Can't compile TypeScript files. Exiting..."
+		if ! (command -v bun &> /dev/null); then
+			echo "ERROR: bun isn't installed. Can't compile TypeScript files. Exiting..."
 
 			exit 1
 		fi
@@ -59,17 +61,17 @@ function build_extension_package() {
 		fi
 
 		if ! (find . -maxdepth 1 -type d | grep -q "node_modules"); then
-			echo "Installing dependencies from NPM to compile TypeScript..."
-			npm install > /dev/null
+			echo "Installing dependencies with Bun to compile TypeScript..."
+			bun install > /dev/null
 			echo "Dependencies installed."
 		fi
 
 		echo "Compiling TypeScript files..."
-		if find scripts/ -type f | grep -q "esbuild.js"; then
-			node ./scripts/esbuild.js
-		else
-			npx tsc
-		fi
+			if find scripts/ -type f | grep -q "esbuild.js"; then
+				bun ./scripts/esbuild.js
+			else
+				bunx tsc
+			fi
 		echo "Done."
 
 		if find src/ -type f | grep -qv ".ts"; then
@@ -107,15 +109,23 @@ function build_extension_package() {
 	echo "Zipping files..."
 
 	(
-		rm -f "$UUID".shell-extension.zip
-		cd "$JS_DIR" && zip -qr ../"$UUID".shell-extension.zip \
+		mkdir -p "$BUILD_DIR"
+		rm -f "$BUILD_DIR/$UUID".shell-extension.zip
+		# Place the gresource at the root of the archive while keeping the built file under build/
+		cp "$RESOURCE_TARGET" "$JS_DIR/"
+		cd "$JS_DIR" && zip -qr ../"$BUILD_DIR/$UUID".shell-extension.zip \
 			. \
 			../metadata.json \
-			../LICENSE \
-			../"$RESOURCE_TARGET"
+			../LICENSE
+		rm -f "$JS_DIR/$UUID.gresource"
 	)
 
 	echo "Extension package zipped."
+}
+
+function try_restarting_killall {
+	killall -HUP gnome-shell
+	echo "SUCCESS: Restart initiated using killall."
 }
 
 function try_restarting_gnome_shell() {
@@ -128,7 +138,7 @@ function try_restarting_gnome_shell() {
 		return 1
 	fi
 
-	echo "Trying to restart GNOME Shell to apply the changes..."
+	echo "Trying to restart GNOME Shell..."
 
 	local js result
 
@@ -142,11 +152,13 @@ function try_restarting_gnome_shell() {
 			--method org.gnome.Shell.Eval string:"$js")
 
 	if echo "$result" | grep -q "true"; then
-		echo "SUCCESS: Restart initiated."
+		echo "SUCCESS: Restart initiated using gdbus."
 	elif echo "$result" | grep -q "Wayland detected"; then
 		echo "ERROR: Failed to restart GNOME Shell. You're on Wayland. Restarting GNOME Shell is not supported since it would also kill your entire session. Please use X11, or log out and log back in to apply the changes."
 	elif echo "$result" | grep -q "false"; then
 		echo "ERROR: Failed to restart GNOME Shell. It looks like you didn't enable GNOME's unsafe mode. Please make sure to enable it and that you're running GNOME on X11."
+		echo "Trying to restart GNOME Shell using killall..."
+		try_restarting_killall
 	fi
 
 	return 0
@@ -154,7 +166,7 @@ function try_restarting_gnome_shell() {
 
 function install_extension_package() {
 	echo "Installing the extension..."
-	gnome-extensions install --force "$UUID".shell-extension.zip
+	gnome-extensions install --force "$BUILD_DIR/$UUID".shell-extension.zip
 	echo "Extension installed."
 
 	if [ "$1" = "-r" ]; then
@@ -163,6 +175,12 @@ function install_extension_package() {
 		echo "Log out and log back in to apply the changes."
 		echo "After that, if you haven't enabled the extension yet, do so to start using it."
 	fi
+}
+
+function enable_extension() {
+	echo "Enabling the extension..."
+	gnome-extensions enable "$UUID"
+	echo "Extension enabled."
 }
 
 function usage() {
@@ -195,8 +213,9 @@ function usage() {
 cd -- "$( dirname "$0" )/../"
 
 UUID=$(grep -oP '"uuid": "\K[^"]+' metadata.json)
-RESOURCE_XML="$UUID.gresource.xml"
-RESOURCE_TARGET="$UUID.gresource"
+BUILD_DIR="build"
+RESOURCE_XML="$BUILD_DIR/$UUID.gresource.xml"
+RESOURCE_TARGET="$BUILD_DIR/$UUID.gresource"
 USING_TYPESCRIPT=$(find . -maxdepth 1 -type f | grep -q "tsconfig.json" && echo "true" || echo "false")
 TYPESCRIPT_OUT_DIR="dist"
 
@@ -214,6 +233,7 @@ elif [ $# -eq 1 ]; then
 		--install | -i)
 			build_extension_package
 			install_extension_package
+			enable_extension
 			exit 0
 			;;
 		--help | -h)
@@ -223,6 +243,7 @@ elif [ $# -eq 1 ]; then
 		--unsafe-reload | -r)
 			build_extension_package
 			install_extension_package -r
+			enable_extension
 			exit 0
 			;;
 		*)

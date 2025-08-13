@@ -1,6 +1,7 @@
 *.gresource*
 *.shell-extension/
 *.zip
+build/
 *~
 dist/
 gschemas.compiled
