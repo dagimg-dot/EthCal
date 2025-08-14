@@ -1,6 +1,7 @@
 import Clutter from "gi://Clutter";
-import GLib from "gi://GLib";
 import St from "gi://St";
+import Kenat from "kenat";
+import formatWithTime from "kenat";
 
 const Mainloop = imports.mainloop;
 
@@ -10,11 +11,12 @@ import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import { logger } from "./utils/logger.js";
 
 const getCurrentDateAndTime = () => {
-    const now = GLib.DateTime.new_now_local();
-    const date = now.format("%b %d");
-    const time = now.format("%H:%M");
+    const ethDate = new Kenat();
+    const date = ethDate.ethiopian;
+    const time = ethDate.getCurrentTime();
+    const formattedTime = new formatWithTime(date, time);
 
-    return { date, time };
+    return { formattedTime };
 };
 
 export default class EthCal extends Extension {
@@ -38,8 +40,8 @@ export default class EthCal extends Extension {
         });
 
         Mainloop.timeout_add_seconds(this.timeout, () => {
-            const { date, time } = getCurrentDateAndTime();
-            label.text = `${date} ${time} Lix`;
+            const { formattedTime } = getCurrentDateAndTime();
+            label.text = formattedTime.toString();
             return true;
         });
 
