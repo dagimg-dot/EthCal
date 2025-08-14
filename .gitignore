@@ -7,3 +7,4 @@ dist/
 gschemas.compiled
 locale/
 node_modules/
+packages/
