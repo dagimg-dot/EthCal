@@ -38,10 +38,19 @@ export class StatusBarIndicator {
             "left",
         );
 
-        const calendarPopup = CalendarPopup(this.extension);
-        (this.#indicator.menu as unknown as PopupMenu.PopupMenu).addMenuItem(
-            calendarPopup,
+        const { item: calendarPopupItem, resetToCurrentMonth } = CalendarPopup(
+            this.extension,
         );
+        
+        const popupMenu = this.#indicator
+            .menu as unknown as PopupMenu.PopupMenu;
+        popupMenu.addMenuItem(calendarPopupItem);
+
+        // Reset calendar to current month when popup opens
+        // Connect to the actor's show signal
+        popupMenu.actor.connect("show", () => {
+            resetToCurrentMonth();
+        });
     }
 
     private startTimeUpdate() {

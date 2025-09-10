@@ -271,6 +271,13 @@ export class MonthGridService {
         }
         return this;
     }
+
+    resetToCurrentMonth(): this {
+        const current = Kenat.now().getEthiopian();
+        this.year = current.year;
+        this.month = current.month;
+        return this;
+    }
 }
 
 export function createMonthGrid(

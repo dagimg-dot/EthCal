@@ -125,6 +125,13 @@ export const CalendarPopup = (extension: Extension) => {
     const svc = new MonthGridService({ weekStart: 1, weekdayLang: "amharic" });
     const dayInfoService = createDayInfoService("amharic");
 
+    // Reset to current month when popup opens
+    const resetToCurrentMonth = () => {
+        svc.resetToCurrentMonth();
+        render();
+        updateTodayEvents();
+    };
+
     const clearGrid = () => {
         grid.get_children().forEach((child) => child.destroy());
     };
@@ -374,5 +381,9 @@ export const CalendarPopup = (extension: Extension) => {
     render();
     updateTodayEvents();
 
-    return item;
+    // Return both the menu item and the reset function
+    return {
+        item,
+        resetToCurrentMonth,
+    };
 };
