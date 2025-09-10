@@ -28,6 +28,6 @@
     "check:types": "tsc -noEmit"
   },
   "dependencies": {
-    "kenat": "file:packages/kenat-2.3.0.tgz"
+    "kenat": "latest"
   }
 }

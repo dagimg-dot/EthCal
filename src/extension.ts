@@ -1,22 +1,30 @@
 import Clutter from "gi://Clutter";
 import St from "gi://St";
-import Kenat from "kenat";
 import formatWithTime from "kenat";
+import { CalendarPopup } from "./components/CalendarPopup.js";
 
 const Mainloop = imports.mainloop;
 
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
+import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import { logger } from "./utils/logger.js";
 
 const getCurrentDateAndTime = () => {
-    const ethDate = new Kenat();
-    const date = ethDate.ethiopian;
-    const time = ethDate.getCurrentTime();
-    const formattedTime = new formatWithTime(date, time);
+    const formattedTime = new formatWithTime();
 
-    return { formattedTime };
+    let formattedString = formattedTime.toString();
+
+    if (formattedTime.time.hour >= 6 && formattedTime.time.minute >= 0) {
+        if (formattedTime.time.period === "night") {
+            formattedString = formattedString.replace("ማታ", "ሌሊት");
+        } else if (formattedTime.time.period === "day") {
+            formattedString = formattedString.replace("ጠዋት", "ከሰዓት");
+        }
+    }
+
+    return { formattedTime: formattedString };
 };
 
 export default class EthCal extends Extension {
@@ -26,7 +34,7 @@ export default class EthCal extends Extension {
     enable() {
         logger("enabled");
 
-        this.#indicator = new PanelMenu.Button(0, "Ethiopian Calendar");
+        this.#indicator = new PanelMenu.Button(0, "Ethiopian Calendar", false);
 
         const label = new St.Label({
             y_align: Clutter.ActorAlign.CENTER,
@@ -34,22 +42,22 @@ export default class EthCal extends Extension {
 
         this.#indicator.add_child(label);
 
-        this.#indicator.connect("button-press-event", () => {
-            logger("Hello EthCal");
-            return Clutter.EVENT_STOP;
-        });
-
         Mainloop.timeout_add_seconds(this.timeout, () => {
             const { formattedTime } = getCurrentDateAndTime();
-            label.text = formattedTime.toString();
+            label.text = formattedTime;
             return true;
         });
 
         Main.panel.addToStatusArea(
             "ethiopian-calendar",
             this.#indicator,
-            0,
-            "center",
+            1,
+            "left",
+        );
+
+        const calendarPopup = CalendarPopup();
+        (this.#indicator.menu as unknown as PopupMenu.PopupMenu).addMenuItem(
+            calendarPopup,
         );
     }
 
