@@ -4,7 +4,7 @@ import St from "gi://St";
 import type { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
-import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
+import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "kenat";
 import { Component, StateManager } from "stignite";
 import type {
@@ -111,7 +111,7 @@ export class StatusBarIndicator extends Component<StatusBarState> {
     }
 
     private createIndicator() {
-        this.#indicator = new PanelMenu.Button(0, "Ethiopian Calendar", true);
+        this.#indicator = new PanelMenu.Button(0, "Ethiopian Calendar", false);
 
         this.#label = new St.Label({
             y_align: Clutter.ActorAlign.CENTER,
@@ -135,17 +135,8 @@ export class StatusBarIndicator extends Component<StatusBarState> {
             settings: this.settings,
         });
 
-        // The CalendarPopup constructor handles setupStateSubscriptions and onMount
-
-        // Create and set up the popup menu (similar to original implementation)
-        const popupMenu = new PopupMenu.PopupMenu(
-            this.#indicator,
-            0.5,
-            St.Side.TOP,
-        );
-
+        const popupMenu = this.#indicator.menu as PopupMenu.PopupMenu;
         popupMenu.addMenuItem(this.#calendarPopup.getItem());
-        this.#indicator.setMenu(popupMenu);
 
         // Connect reset function to popup show event
         popupMenu.actor.connect("show", () => {
