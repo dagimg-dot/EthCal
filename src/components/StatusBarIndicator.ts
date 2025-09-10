@@ -20,6 +20,7 @@ interface MainPanel {
     _leftBox?: St.BoxLayout;
     _rightBox?: St.BoxLayout;
     _centerBox?: St.BoxLayout;
+    menuManager?: PopupMenu.PopupMenuManager;
 }
 
 export class StatusBarIndicator extends Component<StatusBarState> {
@@ -138,6 +139,9 @@ export class StatusBarIndicator extends Component<StatusBarState> {
         const popupMenu = this.#indicator.menu as PopupMenu.PopupMenu;
         popupMenu.addMenuItem(this.#calendarPopup.getItem());
 
+        // Register the menu with GNOME Shell's popup menu manager for proper focus handling
+        (Main.panel as unknown as MainPanel).menuManager?.addMenu(popupMenu, 1);
+
         // Connect reset function to popup show event
         popupMenu.actor.connect("show", () => {
             this.#calendarPopup?.resetToCurrentMonth();
@@ -150,7 +154,7 @@ export class StatusBarIndicator extends Component<StatusBarState> {
         // Remove from current position first
         this.removeFromAllPanelPositions();
 
-        // Add to new position based on component state using panel boxes
+        // Add to new position based on component stiate using panel boxes
         const panel = Main.panel as unknown as MainPanel;
         switch (this.state.position) {
             case "center":
