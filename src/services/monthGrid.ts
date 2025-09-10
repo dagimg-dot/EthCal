@@ -47,6 +47,7 @@ export interface Holiday {
 
 export interface DayCell {
     ethiopian: EthiopianDateLabel;
+    ethiopianNumeric: { year: number; month: number; day: number }; // Original numeric values
     gregorian: GregorianDateLabel;
     weekday: number; // 0..6 where 0=Sunday
     weekdayName: string;
@@ -205,13 +206,18 @@ export class MonthGridService {
                 eth.month === today.month &&
                 eth.day === today.day;
 
-            return {
+            const result = {
                 ethiopian: {
                     year: this.useGeez ? toGeez(eth.year) : eth.year,
                     month: this.useGeez
                         ? monthLabels[eth.month - 1]
                         : eth.month,
                     day: this.useGeez ? toGeez(eth.day) : eth.day,
+                },
+                ethiopianNumeric: {
+                    year: eth.year,
+                    month: eth.month,
+                    day: eth.day,
                 },
                 gregorian: greg,
                 weekday: jsWeekday,
@@ -220,6 +226,8 @@ export class MonthGridService {
                 holidayTags,
                 holidays,
             };
+
+            return result;
         });
 
         // Compute left-padding nulls to align first day under headers

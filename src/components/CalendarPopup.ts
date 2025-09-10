@@ -412,18 +412,9 @@ export class CalendarPopup extends Component<
 
             btn.connect("clicked", () => {
                 const e = day.ethiopian;
-                logger(`Selected EC: ${e.year}/${e.month}/${e.day}`);
 
-                // Update selected date state
-                this.state.selectedDate = {
-                    year:
-                        typeof e.year === "string" ? parseInt(e.year) : e.year,
-                    month:
-                        typeof e.month === "string"
-                            ? parseInt(e.month)
-                            : e.month,
-                    day: typeof e.day === "string" ? parseInt(e.day) : e.day,
-                };
+                // Update selected date state using original numeric values
+                this.state.selectedDate = day.ethiopianNumeric;
 
                 // Show day information in Today section
                 if (
@@ -434,6 +425,7 @@ export class CalendarPopup extends Component<
                     const dayEvents = this.dayInfoService.getDayEvents(
                         this.state.selectedDate,
                     );
+
                     this.eventsTitle.text = `${e.day}/${e.month}/${e.year}`;
 
                     this.eventsList.get_children().forEach((c) => c.destroy());
