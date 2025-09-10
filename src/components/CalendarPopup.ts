@@ -47,6 +47,9 @@ export class CalendarPopup extends Component<
 
         super(initialState, props);
         this.stateManager = new StateManager();
+
+        // Initialize the component to set up state subscriptions
+        this.initialize();
     }
 
     protected setupStateSubscriptions(): void {
@@ -535,5 +538,25 @@ export class CalendarPopup extends Component<
     onDestroy(): void {
         // Clean up event handlers and resources
         this.stateManager.destroy();
+
+        // Clean up UI references
+        this.item = undefined;
+        this.outer = undefined;
+        this.header = undefined;
+        this.grid = undefined;
+        this.gridLayout = undefined;
+        this.titleLabel = undefined;
+        this.prevBtn = undefined;
+        this.nextBtn = undefined;
+        this.eventsBox = undefined;
+        this.eventsTitle = undefined;
+        this.eventsList = undefined;
+        this.settingsBtn = undefined;
+        this.weekdayTitle = undefined;
+        this.fullDateTitle = undefined;
+
+        // Clean up services
+        this.svc = undefined;
+        this.dayInfoService = undefined;
     }
 }

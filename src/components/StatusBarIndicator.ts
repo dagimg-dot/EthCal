@@ -33,16 +33,22 @@ export class StatusBarIndicator extends Component<StatusBarState> {
     private stateManager: StateManager;
 
     constructor(extension: Extension) {
+        const settings = extension.getSettings();
+
         const initialState: StatusBarState = {
-            position: "left",
-            format: "full",
+            position:
+                (settings.get_string("status-bar-position") as PanelPosition) ||
+                "left",
+            format:
+                (settings.get_string("status-bar-format") as TextFormat) ||
+                "full",
             text: "",
         };
 
         super(initialState);
 
         this.extension = extension;
-        this.settings = extension.getSettings();
+        this.settings = settings;
         this.stateManager = new StateManager();
 
         this.initialize();
@@ -99,11 +105,12 @@ export class StatusBarIndicator extends Component<StatusBarState> {
 
     onMount(): void {
         this.createIndicator();
+        this.updateTimeDisplay(); // Update immediately
         this.startTimeUpdate();
     }
 
     private createIndicator() {
-        this.#indicator = new PanelMenu.Button(0, "Ethiopian Calendar", false);
+        this.#indicator = new PanelMenu.Button(0, "Ethiopian Calendar", true);
 
         this.#label = new St.Label({
             y_align: Clutter.ActorAlign.CENTER,
@@ -111,10 +118,10 @@ export class StatusBarIndicator extends Component<StatusBarState> {
 
         this.#indicator.add_child(this.#label);
 
-        // Position indicator in panel
+        // Position indicator in panel (this will add it to the correct position)
         this.updateIndicatorPosition();
 
-        // Setup calendar popup directly
+        // Setup calendar popup
         this.setupCalendarPopup();
     }
 
@@ -144,31 +151,32 @@ export class StatusBarIndicator extends Component<StatusBarState> {
         // Remove from current position first
         this.removeFromAllPanelPositions();
 
-        // Add to new position based on component state
+        // Add to new position based on component state using panel boxes
+        const panel = Main.panel as unknown as MainPanel;
         switch (this.state.position) {
             case "center":
-                Main.panel.addToStatusArea(
-                    "ethiopian-calendar",
-                    this.#indicator,
-                    1,
-                    "center",
-                );
+                if (panel._centerBox) {
+                    panel._centerBox.insert_child_at_index(
+                        this.#indicator.container,
+                        1,
+                    );
+                }
                 break;
             case "left":
-                Main.panel.addToStatusArea(
-                    "ethiopian-calendar",
-                    this.#indicator,
-                    1,
-                    "left",
-                );
+                if (panel._leftBox) {
+                    panel._leftBox.insert_child_at_index(
+                        this.#indicator.container,
+                        1,
+                    );
+                }
                 break;
-            default:
-                Main.panel.addToStatusArea(
-                    "ethiopian-calendar",
-                    this.#indicator,
-                    1,
-                    "right",
-                );
+            default: // right
+                if (panel._rightBox) {
+                    panel._rightBox.insert_child_at_index(
+                        this.#indicator.container,
+                        1,
+                    );
+                }
                 break;
         }
     }
@@ -267,9 +275,9 @@ export class StatusBarIndicator extends Component<StatusBarState> {
             this.#timeoutId = undefined;
         }
 
-        // Clean up calendar popup
+        // Clean up calendar popup using Stignite's destroy method
         if (this.#calendarPopup) {
-            this.#calendarPopup.destroy();
+            this.#calendarPopup.onDestroy();
             this.#calendarPopup = undefined;
         }
 
