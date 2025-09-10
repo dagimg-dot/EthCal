@@ -48,7 +48,7 @@ export class CalendarPopup extends Component<
         super(initialState, props);
         this.stateManager = new StateManager();
 
-        // Initialize the component to set up state subscriptions
+        // Initialize the component to set up state subscriptions and mount
         this.initialize();
     }
 

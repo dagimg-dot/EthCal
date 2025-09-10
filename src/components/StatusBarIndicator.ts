@@ -4,7 +4,7 @@ import St from "gi://St";
 import type { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
-import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
+import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "kenat";
 import { Component, StateManager } from "stignite";
 import type {
@@ -51,6 +51,7 @@ export class StatusBarIndicator extends Component<StatusBarState> {
         this.settings = settings;
         this.stateManager = new StateManager();
 
+        // Initialize the component to set up state subscriptions and mount
         this.initialize();
     }
 
@@ -134,10 +135,17 @@ export class StatusBarIndicator extends Component<StatusBarState> {
             settings: this.settings,
         });
 
-        // Add the popup item to the menu
-        const popupMenu = this.#indicator
-            .menu as unknown as PopupMenu.PopupMenu;
+        // The CalendarPopup constructor handles setupStateSubscriptions and onMount
+
+        // Create and set up the popup menu (similar to original implementation)
+        const popupMenu = new PopupMenu.PopupMenu(
+            this.#indicator,
+            0.5,
+            St.Side.TOP,
+        );
+
         popupMenu.addMenuItem(this.#calendarPopup.getItem());
+        this.#indicator.setMenu(popupMenu);
 
         // Connect reset function to popup show event
         popupMenu.actor.connect("show", () => {

@@ -8,7 +8,6 @@ export default class EthCal extends Extension {
     enable() {
         logger("EthCal extension enabled");
         this.#statusBarIndicator = new StatusBarIndicator(this);
-        // this.#statusBarIndicator.onMount(); // Mount the component to render UI
     }
 
     disable() {
