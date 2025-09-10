@@ -1,4 +1,5 @@
 import Clutter from "gi://Clutter";
+import Pango from "gi://Pango";
 import St from "gi://St";
 import type { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
@@ -185,9 +186,14 @@ export const CalendarPopup = (extension: Extension) => {
                     text: event.description,
                     style_class: "calendar-event-description",
                     x_expand: true,
-                    y_expand: false,
+                    y_expand: true,
                     x_align: Clutter.ActorAlign.START,
                 });
+
+                // Enable text wrapping on the underlying Clutter.Text actor
+                description.clutter_text.line_wrap = true;
+                description.clutter_text.line_wrap_mode =
+                    Pango.WrapMode.WORD_CHAR;
 
                 eventContent.add_child(title);
                 eventContent.add_child(description);
@@ -316,9 +322,14 @@ export const CalendarPopup = (extension: Extension) => {
                             text: event.description,
                             style_class: "calendar-event-description",
                             x_expand: true,
-                            y_expand: false,
+                            y_expand: true,
                             x_align: Clutter.ActorAlign.START,
                         });
+
+                        // Enable text wrapping on the underlying Clutter.Text actor
+                        description.clutter_text.line_wrap = true;
+                        description.clutter_text.line_wrap_mode =
+                            Pango.WrapMode.WORD_CHAR;
 
                         eventContent.add_child(title);
                         eventContent.add_child(description);
