@@ -326,7 +326,7 @@ export class DayInfoService {
         if (fasting.key === FastingKeys.TSOME_DIHENET) {
             return fasting.name;
         }
-        return `Day ${fasting.currentDay} of ${fasting.totalDays} - ${fasting.name}`;
+        return `ቀን ${fasting.currentDay} / ${fasting.totalDays} - ${fasting.name}`;
     }
 
     /**
