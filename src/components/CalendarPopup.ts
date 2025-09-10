@@ -139,7 +139,7 @@ export const CalendarPopup = (extension: Extension) => {
         style_class: "calendar-events",
     });
     const eventsTitle = new St.Label({
-        text: "Today",
+        text: "ዛሬ",
         style_class: "calendar-events-title",
     });
     const eventsList = new St.BoxLayout({
@@ -204,7 +204,7 @@ export const CalendarPopup = (extension: Extension) => {
             });
         } else {
             const empty = new St.Label({
-                text: "No Events",
+                text: "ምንም ማስታወሻ አልተገኘም",
                 style_class: "calendar-event-empty",
             });
             eventsList.add_child(empty);
@@ -340,7 +340,7 @@ export const CalendarPopup = (extension: Extension) => {
                     });
                 } else {
                     const empty = new St.Label({
-                        text: "No Events",
+                        text: "ምንም ማስታወሻ አልተገኘም",
                         style_class: "calendar-event-empty",
                     });
                     eventsList.add_child(empty);
@@ -360,14 +360,14 @@ export const CalendarPopup = (extension: Extension) => {
         svc.down();
         render();
         // Reset Today section when navigating
-        eventsTitle.text = "Today";
+        eventsTitle.text = "ዛሬ";
         updateTodayEvents();
     });
     nextBtn.connect("clicked", () => {
         svc.up();
         render();
         // Reset Today section when navigating
-        eventsTitle.text = "Today";
+        eventsTitle.text = "ዛሬ";
         updateTodayEvents();
     });
 
