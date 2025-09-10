@@ -213,13 +213,30 @@ export const CalendarPopup = () => {
                 style_class: "calendar-day",
                 can_focus: true,
             });
+
             btn.set_child(new St.Label({ text: label }));
 
             if (day.isToday) {
                 btn.add_style_class_name("calendar-today");
             }
+
             if (day.holidays.length > 0) {
                 btn.add_style_class_name("calendar-holiday");
+
+                // Add specific holiday type classes based on tags
+                const allTags = day.holidays.flatMap((h) => h.tags);
+
+                if (allTags.includes("public")) {
+                    btn.add_style_class_name("public-holiday");
+                }
+
+                if (allTags.includes("religious")) {
+                    btn.add_style_class_name("religious-holiday");
+                }
+
+                if (allTags.includes("cultural")) {
+                    btn.add_style_class_name("cultural-holiday");
+                }
             }
 
             btn.connect("clicked", () => {

@@ -52,8 +52,33 @@
   background-color: #4c8dff;
   color: white;
 }
-.calendar-holiday:not(.calendar-today) {
-  background-color: rgba(76, 141, 255, 0.15);
+.calendar-holiday {
+  background-color: rgba(76, 141, 255, 0.3);
+  border: 2px solid rgba(76, 141, 255, 0.6);
+  font-weight: 600;
+}
+
+/* Different colors for different holiday types */
+.calendar-holiday.public-holiday {
+  background-color: rgba(255, 193, 7, 0.4);
+  border: 2px solid rgba(255, 193, 7, 0.7);
+}
+
+.calendar-holiday.religious-holiday {
+  background-color: rgba(156, 39, 176, 0.4);
+  border: 2px solid rgba(156, 39, 176, 0.7);
+}
+
+.calendar-holiday.cultural-holiday {
+  background-color: rgba(76, 175, 80, 0.4);
+  border: 2px solid rgba(76, 175, 80, 0.7);
+}
+
+/* Override for today to ensure it takes precedence */
+.calendar-today {
+  background-color: #4c8dff;
+  color: white;
+  border: none;
 }
 
 .calendar-events {
