@@ -1,168 +1,290 @@
 import Clutter from "gi://Clutter";
+import type Gio from "gi://Gio";
 import Pango from "gi://Pango";
 import St from "gi://St";
 import type { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "kenat";
+import { Component, StateManager } from "stignite";
 import { createDayInfoService } from "../services/dayInfoService.js";
 import { MonthGridService } from "../services/monthGrid.js";
+import type {
+    CalendarPopupProps,
+    CalendarPopupState,
+    Language,
+} from "../types/index.js";
 import { logger } from "../utils/logger.js";
 
-export const CalendarPopup = (extension: Extension) => {
-    const item = new PopupMenu.PopupBaseMenuItem({
-        reactive: false,
-        can_focus: false,
-    });
+export class CalendarPopup extends Component<
+    CalendarPopupState,
+    CalendarPopupProps
+> {
+    private item: PopupMenu.PopupBaseMenuItem | undefined;
+    private outer: St.BoxLayout | undefined;
+    private header: St.BoxLayout | undefined;
+    private grid: St.Widget | undefined;
+    private gridLayout: Clutter.GridLayout | undefined;
+    private titleLabel: St.Label | undefined;
+    private prevBtn: St.Button | undefined;
+    private nextBtn: St.Button | undefined;
+    private eventsBox: St.BoxLayout | undefined;
+    private eventsTitle: St.Label | undefined;
+    private eventsList: St.BoxLayout | undefined;
+    private settingsBtn: St.Button | undefined;
+    private weekdayTitle: St.Label | undefined;
+    private fullDateTitle: St.Label | undefined;
 
-    const outer = new St.BoxLayout({
-        vertical: true,
-        style_class: "calendar-popup",
-    });
+    private svc: MonthGridService | undefined;
+    private dayInfoService: ReturnType<typeof createDayInfoService> | undefined;
+    private stateManager: StateManager;
 
-    item.add_child(outer);
+    constructor(props: CalendarPopupProps) {
+        const initialState: CalendarPopupState = {
+            language: "amharic",
+            currentMonth: "",
+            selectedDate: null,
+        };
 
-    // Top date header (weekday + full date + settings)
-    const topHeader = new St.BoxLayout({
-        vertical: true,
-        style_class: "calendar-top",
-    });
+        super(initialState, props);
+        this.stateManager = new StateManager();
+    }
 
-    // Top row: weekday and settings icon
-    const topRow = new St.BoxLayout({
-        vertical: false,
-        style_class: "calendar-top-row",
-    });
+    protected setupStateSubscriptions(): void {
+        // Create reactive state for language
+        const settings = this.props.settings as Gio.Settings;
+        const languageState = this.stateManager.createState(
+            "language",
+            (settings.get_string("calendar-language") as Language) || "amharic",
+        );
 
-    const today = new Kenat();
+        // Subscribe to language changes
+        this.subscribeToState(languageState, (language) => {
+            this.state.language = language;
+            this.updateLanguage();
+        });
 
-    // Top header format
-    // {weekdayName}                    [settings icon]
-    // {monthName} {day} {year}
+        // Connect to settings changes
+        this.connectSignal(settings, "changed::calendar-language", () => {
+            const newLanguage =
+                (settings.get_string("calendar-language") as Language) ||
+                "amharic";
+            languageState.set(newLanguage);
+        });
+    }
 
-    const weekdayTitle = new St.Label({
-        text: today.formatWithWeekday("amharic", false).split(",")[0],
-        style_class: "calendar-top-weekday",
-    });
+    onMount(): void {
+        this.createUI();
+        this.setupServices();
+        this.setupNavigation();
+        this.render();
+        this.updateTodayEvents();
+    }
 
-    // Settings button
-    const settingsBtn = new St.Button({
-        style_class: "calendar-settings-button",
-        can_focus: true,
-    });
-    settingsBtn.set_child(
-        new St.Icon({
-            icon_name: "preferences-system-symbolic",
-            style_class: "popup-menu-icon",
-        }),
-    );
+    private createUI(): void {
+        // Create main popup item
+        this.item = new PopupMenu.PopupBaseMenuItem({
+            reactive: false,
+            can_focus: false,
+        });
 
-    // Connect settings button to open preferences
-    settingsBtn.connect("clicked", () => {
-        // Open the preferences window
-        logger("Opening EthCal settings");
-        extension.openPreferences();
-    });
+        // Create main container
+        this.outer = new St.BoxLayout({
+            vertical: true,
+            style_class: "calendar-popup",
+        });
 
-    topRow.add_child(weekdayTitle);
-    topRow.add_child(new St.Widget({ x_expand: true })); // Spacer
-    topRow.add_child(settingsBtn);
+        this.item.add_child(this.outer);
 
-    const fullDateTitle = new St.Label({
-        text: today.format({ lang: "amharic" }),
-        style_class: "calendar-top-date",
-    });
+        this.createTopHeader();
+        this.createNavigationHeader();
+        this.createGrid();
+        this.createEventsSection();
+    }
 
-    topHeader.add_child(topRow);
-    topHeader.add_child(fullDateTitle);
-    outer.add_child(topHeader);
+    private createTopHeader(): void {
+        if (!this.outer) return;
 
-    // Header with navigation
-    const header = new St.BoxLayout({
-        vertical: false,
-        style_class: "calendar-month-header",
-    });
-    const prevBtn = new St.Button({
-        style_class: "calendar-nav-button",
-        can_focus: true,
-    });
-    prevBtn.set_child(
-        new St.Icon({
-            icon_name: "go-previous-symbolic",
-            style_class: "popup-menu-icon",
-        }),
-    );
-    const titleLabel = new St.Label({
-        text: "",
-        style_class: "calendar-title",
-    });
-    const nextBtn = new St.Button({
-        style_class: "calendar-nav-button",
-        can_focus: true,
-    });
-    nextBtn.set_child(
-        new St.Icon({
-            icon_name: "go-next-symbolic",
-            style_class: "popup-menu-icon",
-        }),
-    );
+        const topHeader = new St.BoxLayout({
+            vertical: true,
+            style_class: "calendar-top",
+        });
 
-    header.add_child(prevBtn);
-    header.add_child(new St.Widget({ x_expand: true }));
-    header.add_child(titleLabel);
-    header.add_child(new St.Widget({ x_expand: true }));
-    header.add_child(nextBtn);
-    outer.add_child(header);
+        // Top row: weekday and settings icon
+        const topRow = new St.BoxLayout({
+            vertical: false,
+            style_class: "calendar-top-row",
+        });
 
-    // Grid container (7 columns: headers + days)
-    const gridLayout = new Clutter.GridLayout();
-    const grid = new St.Widget({
-        layout_manager: gridLayout,
-        style_class: "calendar-grid",
-    });
-    outer.add_child(grid);
+        const today = new Kenat();
 
-    // Instance state
-    const svc = new MonthGridService({ weekStart: 1, weekdayLang: "amharic" });
-    const dayInfoService = createDayInfoService("amharic");
+        // Top header format
+        // {weekdayName}                    [settings icon]
+        // {monthName} {day} {year}
+        this.weekdayTitle = new St.Label({
+            text: today.formatWithWeekday("amharic", false).split(",")[0],
+            style_class: "calendar-top-weekday",
+        });
 
-    // Reset to current month when popup opens
-    const resetToCurrentMonth = () => {
-        svc.resetToCurrentMonth();
-        render();
-        updateTodayEvents();
-    };
+        // Settings button
+        this.settingsBtn = new St.Button({
+            style_class: "calendar-settings-button",
+            can_focus: true,
+        });
+        this.settingsBtn.set_child(
+            new St.Icon({
+                icon_name: "preferences-system-symbolic",
+                style_class: "popup-menu-icon",
+            }),
+        );
 
-    const clearGrid = () => {
-        grid.get_children().forEach((child) => child.destroy());
-    };
+        // Connect settings button to open preferences
+        this.settingsBtn.connect("clicked", () => {
+            logger("Opening EthCal settings");
+            (this.props.extension as Extension).openPreferences();
+        });
 
-    const setCell = (row: number, col: number, actor: St.Widget) => {
-        gridLayout.attach(actor, col, row, 1, 1);
-    };
+        topRow.add_child(this.weekdayTitle);
+        topRow.add_child(new St.Widget({ x_expand: true })); // Spacer
+        topRow.add_child(this.settingsBtn);
 
-    // Today events section
-    const eventsBox = new St.BoxLayout({
-        vertical: true,
-        style_class: "calendar-events",
-    });
-    const eventsTitle = new St.Label({
-        text: "ዛሬ",
-        style_class: "calendar-events-title",
-    });
-    const eventsList = new St.BoxLayout({
-        vertical: true,
-        style_class: "calendar-events-list",
-    });
-    eventsBox.add_child(eventsTitle);
-    eventsBox.add_child(eventsList);
-    outer.add_child(eventsBox);
+        this.fullDateTitle = new St.Label({
+            text: today.format({ lang: "amharic" }),
+            style_class: "calendar-top-date",
+        });
 
-    // Function to update Today events section
-    const updateTodayEvents = () => {
-        eventsList.get_children().forEach((c) => c.destroy());
+        topHeader.add_child(topRow);
+        topHeader.add_child(this.fullDateTitle);
+        this.outer.add_child(topHeader);
+    }
+
+    private createNavigationHeader(): void {
+        if (!this.outer) return;
+
+        this.header = new St.BoxLayout({
+            vertical: false,
+            style_class: "calendar-month-header",
+        });
+
+        this.prevBtn = new St.Button({
+            style_class: "calendar-nav-button",
+            can_focus: true,
+        });
+        this.prevBtn.set_child(
+            new St.Icon({
+                icon_name: "go-previous-symbolic",
+                style_class: "popup-menu-icon",
+            }),
+        );
+
+        this.titleLabel = new St.Label({
+            text: "",
+            style_class: "calendar-title",
+        });
+
+        this.nextBtn = new St.Button({
+            style_class: "calendar-nav-button",
+            can_focus: true,
+        });
+        this.nextBtn.set_child(
+            new St.Icon({
+                icon_name: "go-next-symbolic",
+                style_class: "popup-menu-icon",
+            }),
+        );
+
+        this.header.add_child(this.prevBtn);
+        this.header.add_child(new St.Widget({ x_expand: true }));
+        this.header.add_child(this.titleLabel);
+        this.header.add_child(new St.Widget({ x_expand: true }));
+        this.header.add_child(this.nextBtn);
+        this.outer.add_child(this.header);
+    }
+
+    private createGrid(): void {
+        if (!this.outer) return;
+
+        // Grid container (7 columns: headers + days)
+        this.gridLayout = new Clutter.GridLayout();
+        this.grid = new St.Widget({
+            layout_manager: this.gridLayout,
+            style_class: "calendar-grid",
+        });
+        this.outer.add_child(this.grid);
+    }
+
+    private createEventsSection(): void {
+        if (!this.outer) return;
+
+        this.eventsBox = new St.BoxLayout({
+            vertical: true,
+            style_class: "calendar-events",
+        });
+
+        this.eventsTitle = new St.Label({
+            text: "ዛሬ",
+            style_class: "calendar-events-title",
+        });
+
+        this.eventsList = new St.BoxLayout({
+            vertical: true,
+            style_class: "calendar-events-list",
+        });
+
+        this.eventsBox.add_child(this.eventsTitle);
+        this.eventsBox.add_child(this.eventsList);
+        this.outer.add_child(this.eventsBox);
+    }
+
+    private setupServices(): void {
+        this.svc = new MonthGridService({
+            weekStart: 1,
+            weekdayLang: this.state.language,
+            useGeez: true,
+        });
+        this.dayInfoService = createDayInfoService(this.state.language);
+    }
+
+    public resetToCurrentMonth(): void {
+        if (!this.svc) return;
+        this.svc.resetToCurrentMonth();
+        this.render();
+        this.updateTodayEvents();
+    }
+
+    private updateLanguage(): void {
+        if (!this.svc || !this.dayInfoService) return;
+
+        // Update services with new language
+        this.svc = new MonthGridService({
+            weekStart: 1,
+            weekdayLang: this.state.language,
+            useGeez: true,
+        });
+        this.dayInfoService = createDayInfoService(this.state.language);
+
+        // Re-render with new language
+        this.render();
+        this.updateTodayEvents();
+    }
+
+    private clearGrid(): void {
+        if (!this.grid) return;
+        this.grid.get_children().forEach((child) => child.destroy());
+    }
+
+    private setCell(row: number, col: number, actor: St.Widget): void {
+        if (!this.gridLayout) return;
+        this.gridLayout.attach(actor, col, row, 1, 1);
+    }
+
+    private updateTodayEvents(): void {
+        if (!this.eventsList || !this.eventsTitle || !this.dayInfoService)
+            return;
+
+        this.eventsList.get_children().forEach((c) => c.destroy());
 
         const today = Kenat.now().getEthiopian();
-        const dayEvents = dayInfoService.getDayEvents(today);
+        const dayEvents = this.dayInfoService.getDayEvents(today);
 
         if (dayEvents.hasEvents) {
             dayEvents.events.forEach((event) => {
@@ -207,22 +329,25 @@ export const CalendarPopup = (extension: Extension) => {
 
                 eventRow.add_child(dot);
                 eventRow.add_child(eventContent);
-                eventsList.add_child(eventRow);
+                this.eventsList?.add_child(eventRow);
             });
         } else {
             const empty = new St.Label({
                 text: "ምንም ማስታወሻ አልተገኘም",
                 style_class: "calendar-event-empty",
             });
-            eventsList.add_child(empty);
+            this.eventsList?.add_child(empty);
         }
-    };
+    }
 
-    const render = () => {
-        const data = svc.generate();
-        titleLabel.text = `${data.monthName} ${data.year}`;
+    private render(): void {
+        if (!this.svc || !this.titleLabel || !this.eventsTitle) return;
 
-        clearGrid();
+        const data = this.svc.generate();
+        this.titleLabel.text = `${data.monthName} ${data.year}`;
+        this.state.currentMonth = `${data.monthName} ${data.year}`;
+
+        this.clearGrid();
 
         // Headers in row 0
         data.headers.forEach((h, idx) => {
@@ -230,7 +355,7 @@ export const CalendarPopup = (extension: Extension) => {
                 text: h.slice(0, 3),
                 style_class: "calendar-header",
             });
-            setCell(0, idx, lbl);
+            this.setCell(0, idx, lbl);
         });
 
         // Days start at row 1
@@ -243,7 +368,7 @@ export const CalendarPopup = (extension: Extension) => {
             }
 
             if (!day) {
-                setCell(row, col, new St.Label({ text: "" }));
+                this.setCell(row, col, new St.Label({ text: "" }));
                 col += 1;
                 return;
             }
@@ -286,8 +411,8 @@ export const CalendarPopup = (extension: Extension) => {
                 const e = day.ethiopian;
                 logger(`Selected EC: ${e.year}/${e.month}/${e.day}`);
 
-                // Show day information in Today section
-                const dayEvents = dayInfoService.getDayEvents({
+                // Update selected date state
+                this.state.selectedDate = {
                     year:
                         typeof e.year === "string" ? parseInt(e.year) : e.year,
                     month:
@@ -295,95 +420,120 @@ export const CalendarPopup = (extension: Extension) => {
                             ? parseInt(e.month)
                             : e.month,
                     day: typeof e.day === "string" ? parseInt(e.day) : e.day,
-                });
-                eventsTitle.text = `${e.day}/${e.month}/${e.year}`;
+                };
 
-                eventsList.get_children().forEach((c) => c.destroy());
+                // Show day information in Today section
+                if (
+                    this.dayInfoService &&
+                    this.eventsTitle &&
+                    this.eventsList
+                ) {
+                    const dayEvents = this.dayInfoService.getDayEvents(
+                        this.state.selectedDate,
+                    );
+                    this.eventsTitle.text = `${e.day}/${e.month}/${e.year}`;
 
-                if (dayEvents.hasEvents) {
-                    dayEvents.events.forEach((event) => {
-                        const eventRow = new St.BoxLayout({
-                            vertical: false,
-                            style_class: "calendar-event",
+                    this.eventsList.get_children().forEach((c) => c.destroy());
+
+                    if (dayEvents.hasEvents) {
+                        dayEvents.events.forEach((event) => {
+                            const eventRow = new St.BoxLayout({
+                                vertical: false,
+                                style_class: "calendar-event",
+                            });
+
+                            const dot = new St.Label({
+                                text: "•",
+                                style_class: "calendar-event-dot",
+                            });
+
+                            const eventContent = new St.BoxLayout({
+                                vertical: true,
+                                style_class: "calendar-event-content",
+                            });
+
+                            const title = new St.Label({
+                                text: event.title,
+                                style_class: "calendar-event-title",
+                                x_expand: true,
+                                y_expand: false,
+                                x_align: Clutter.ActorAlign.START,
+                            });
+
+                            const description = new St.Label({
+                                text: event.description,
+                                style_class: "calendar-event-description",
+                                x_expand: true,
+                                y_expand: true,
+                                x_align: Clutter.ActorAlign.START,
+                            });
+
+                            // Enable text wrapping on the underlying Clutter.Text actor
+                            description.clutter_text.line_wrap = true;
+                            description.clutter_text.line_wrap_mode =
+                                Pango.WrapMode.WORD_CHAR;
+
+                            eventContent.add_child(title);
+                            eventContent.add_child(description);
+
+                            eventRow.add_child(dot);
+                            eventRow.add_child(eventContent);
+                            this.eventsList?.add_child(eventRow);
                         });
-
-                        const dot = new St.Label({
-                            text: "•",
-                            style_class: "calendar-event-dot",
+                    } else {
+                        const empty = new St.Label({
+                            text: "ምንም ማስታወሻ አልተገኘም",
+                            style_class: "calendar-event-empty",
                         });
-
-                        const eventContent = new St.BoxLayout({
-                            vertical: true,
-                            style_class: "calendar-event-content",
-                        });
-
-                        const title = new St.Label({
-                            text: event.title,
-                            style_class: "calendar-event-title",
-                            x_expand: true,
-                            y_expand: false,
-                            x_align: Clutter.ActorAlign.START,
-                        });
-
-                        const description = new St.Label({
-                            text: event.description,
-                            style_class: "calendar-event-description",
-                            x_expand: true,
-                            y_expand: true,
-                            x_align: Clutter.ActorAlign.START,
-                        });
-
-                        // Enable text wrapping on the underlying Clutter.Text actor
-                        description.clutter_text.line_wrap = true;
-                        description.clutter_text.line_wrap_mode =
-                            Pango.WrapMode.WORD_CHAR;
-
-                        eventContent.add_child(title);
-                        eventContent.add_child(description);
-
-                        eventRow.add_child(dot);
-                        eventRow.add_child(eventContent);
-                        eventsList.add_child(eventRow);
-                    });
-                } else {
-                    const empty = new St.Label({
-                        text: "ምንም ማስታወሻ አልተገኘም",
-                        style_class: "calendar-event-empty",
-                    });
-                    eventsList.add_child(empty);
+                        this.eventsList?.add_child(empty);
+                    }
                 }
             });
 
-            setCell(row, col, btn);
+            this.setCell(row, col, btn);
             col += 1;
         });
+    }
 
-        // Keep the top header values as initialized; do not override here
-        // Keep the top header values as initialized; do not override here
-    };
+    private setupNavigation(): void {
+        if (!this.prevBtn || !this.nextBtn || !this.eventsTitle) return;
 
-    // Navigation
-    prevBtn.connect("clicked", () => {
-        svc.down();
-        render();
-        // Reset Today section when navigating
-        eventsTitle.text = "ዛሬ";
-        updateTodayEvents();
-    });
-    nextBtn.connect("clicked", () => {
-        svc.up();
-        render();
-        // Reset Today section when navigating
-        eventsTitle.text = "ዛሬ";
-        updateTodayEvents();
-    });
+        this.prevBtn.connect("clicked", () => {
+            if (this.svc) {
+                this.svc.down();
+                this.render();
+                // Reset Today section when navigating
+                if (this.eventsTitle) {
+                    this.eventsTitle.text = "ዛሬ";
+                }
+                this.updateTodayEvents();
+            }
+        });
 
-    render();
-    updateTodayEvents();
+        this.nextBtn.connect("clicked", () => {
+            if (this.svc) {
+                this.svc.up();
+                this.render();
+                // Reset Today section when navigating
+                if (this.eventsTitle) {
+                    this.eventsTitle.text = "ዛሬ";
+                }
+                this.updateTodayEvents();
+            }
+        });
+    }
 
-    // Return both the menu item and the reset function
-    return {
-        item,
-        resetToCurrentMonth,
-    };
-};
+    public getItem(): PopupMenu.PopupBaseMenuItem {
+        if (!this.item) {
+            throw new Error(
+                "CalendarPopup item not initialized. Call onMount() first.",
+            );
+        }
+        return this.item;
+    }
+
+    onDestroy(): void {
+        // Clean up event handlers and resources
+        this.stateManager.destroy();
+    }
+}

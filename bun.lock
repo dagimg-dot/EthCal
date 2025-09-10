@@ -5,6 +5,7 @@
       "name": "ethcal",
       "dependencies": {
         "kenat": "latest",
+        "stignite": "file:packages/stignite",
       },
       "devDependencies": {
         "@biomejs/biome": "^2.1.4",
@@ -176,6 +177,8 @@
     "esbuild-plugin-tsc": ["esbuild-plugin-tsc@0.5.0", "", { "dependencies": { "strip-comments": "^2.0.1" }, "peerDependencies": { "typescript": "^4.0.0 || ^5.0.0" } }, "sha512-t9j90NnMhAGWzS0SKX3zNa/XeWcUanqKaFe36CSmXiB2nYFdaSzKY9pBZTvGV7NGImxE1BktOOlVpQyYnUTVGg=="],
 
     "kenat": ["kenat@3.0.0", "", {}, "sha512-TzLyq4xOAlb3h7WDnzeJd5vYbneHYdVIwdwut+fbxsSFvuH+SgixjznNq57llMA3eBhl0WAKsvcT3lzQCwlqhA=="],
+
+    "stignite": ["stignite@file:packages/stignite", { "devDependencies": { "@girs/gjs": "^4.0.0-beta.25", "@girs/gnome-shell": "^48.0.2", "typescript": "^5.9.2" }, "peerDependencies": { "@girs/gjs": "^4.0.0-beta.25", "@girs/gnome-shell": "^48.0.0" } }],
 
     "strip-comments": ["strip-comments@2.0.1", "", {}, "sha512-ZprKx+bBLXv067WTCALv8SSz5l2+XhpYCsVtSqlMnkAXMWDq+/ekVbl1ghqP9rUHTzv6sm/DwCOiYutU/yp1fw=="],
 

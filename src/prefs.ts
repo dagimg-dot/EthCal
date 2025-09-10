@@ -24,6 +24,9 @@ const getTemplate = (name: string): string => {
 };
 
 interface GeneralPageChildren {
+    _statusBarPosition: Adw.ComboRow;
+    _statusBarFormat: Adw.ComboRow;
+    _calendarLanguage: Adw.ComboRow;
     _sayHello: Adw.SwitchRow;
 }
 
@@ -31,18 +34,118 @@ const GeneralPage = GObject.registerClass(
     {
         GTypeName: "TypescriptTemplateGeneralPage",
         Template: getTemplate("GeneralPage"),
-        InternalChildren: ["sayHello"],
+        InternalChildren: [
+            "statusBarPosition",
+            "statusBarFormat",
+            "calendarLanguage",
+            "sayHello",
+        ],
     },
     class GeneralPage extends Adw.PreferencesPage {
         bindSettings(settings: Gio.Settings) {
             logger("This is from prefs");
             const children = this as unknown as GeneralPageChildren;
+
+            // Status bar position binding
+            const _positionMapping = { left: 0, center: 1, right: 2 };
+            const reversePositionMapping = ["left", "center", "right"];
+
+            settings.bind(
+                "status-bar-position",
+                children._statusBarPosition,
+                "selected",
+                Gio.SettingsBindFlags.DEFAULT,
+            );
+            children._statusBarPosition.connect("notify::selected", () => {
+                const selectedIndex = children._statusBarPosition.selected;
+                const value = reversePositionMapping[selectedIndex] || "left";
+                settings.set_string("status-bar-position", value);
+            });
+
+            // Status bar format binding
+            const _formatMapping = {
+                full: 0,
+                compact: 1,
+                medium: 2,
+                "time-only": 3,
+                "date-only": 4,
+            };
+            const reverseFormatMapping = [
+                "full",
+                "compact",
+                "medium",
+                "time-only",
+                "date-only",
+            ];
+
+            settings.bind(
+                "status-bar-format",
+                children._statusBarFormat,
+                "selected",
+                Gio.SettingsBindFlags.DEFAULT,
+            );
+            children._statusBarFormat.connect("notify::selected", () => {
+                const selectedIndex = children._statusBarFormat.selected;
+                const value = reverseFormatMapping[selectedIndex] || "full";
+                settings.set_string("status-bar-format", value);
+            });
+
+            // Calendar language binding
+            const _languageMapping = { amharic: 0, english: 1 };
+            const reverseLanguageMapping = ["amharic", "english"];
+
+            settings.bind(
+                "calendar-language",
+                children._calendarLanguage,
+                "selected",
+                Gio.SettingsBindFlags.DEFAULT,
+            );
+            children._calendarLanguage.connect("notify::selected", () => {
+                const selectedIndex = children._calendarLanguage.selected;
+                const value =
+                    reverseLanguageMapping[selectedIndex] || "amharic";
+                settings.set_string("calendar-language", value);
+            });
+
+            // Legacy setting
             settings.bind(
                 "say-hello",
                 children._sayHello,
                 "active",
                 Gio.SettingsBindFlags.DEFAULT,
             );
+
+            // Initialize combo boxes with current values
+            this._updateComboBoxes(settings, children);
+        }
+
+        private _updateComboBoxes(
+            settings: Gio.Settings,
+            children: GeneralPageChildren,
+        ) {
+            // Status bar position
+            const positionValue = settings.get_string("status-bar-position");
+            const positionIndex =
+                { left: 0, center: 1, right: 2 }[positionValue] || 0;
+            children._statusBarPosition.selected = positionIndex;
+
+            // Status bar format
+            const formatValue = settings.get_string("status-bar-format");
+            const formatIndex =
+                {
+                    full: 0,
+                    compact: 1,
+                    medium: 2,
+                    "time-only": 3,
+                    "date-only": 4,
+                }[formatValue] || 0;
+            children._statusBarFormat.selected = formatIndex;
+
+            // Calendar language
+            const languageValue = settings.get_string("calendar-language");
+            const languageIndex =
+                { amharic: 0, english: 1 }[languageValue] || 0;
+            children._calendarLanguage.selected = languageIndex;
         }
     },
 );

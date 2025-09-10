@@ -4,8 +4,76 @@
   <template class="TypescriptTemplateGeneralPage" parent="AdwPreferencesPage">
     <property name="title" translatable="true">General</property>
     <property name="icon_name">dialog-information-symbolic</property>
+
+    <!-- Status Bar Settings Group -->
     <child>
       <object class="AdwPreferencesGroup">
+        <property name="title" translatable="true">Status Bar</property>
+        <property name="description" translatable="true">Configure the status bar indicator appearance and position</property>
+
+        <child>
+          <object class="AdwComboRow" id="statusBarPosition">
+            <property name="title" translatable="true">Position</property>
+            <property name="subtitle" translatable="true">Position of the calendar indicator in the status bar</property>
+            <property name="model">
+              <object class="GtkStringList">
+                <items>
+                  <item translatable="true">Left</item>
+                  <item translatable="true">Center</item>
+                  <item translatable="true">Right</item>
+                </items>
+              </object>
+            </property>
+          </object>
+        </child>
+
+        <child>
+          <object class="AdwComboRow" id="statusBarFormat">
+            <property name="title" translatable="true">Text Format</property>
+            <property name="subtitle" translatable="true">Format for displaying date and time in status bar</property>
+            <property name="model">
+              <object class="GtkStringList">
+                <items>
+                  <item translatable="true">Full (Weekday Day Year HH:MM TimeDesc)</item>
+                  <item translatable="true">Compact (Month Day HH:MM)</item>
+                  <item translatable="true">Medium (Weekday Month Day HH:MM)</item>
+                  <item translatable="true">Time Only (HH:MM TimeDesc)</item>
+                  <item translatable="true">Date Only (Weekday Day Year)</item>
+                </items>
+              </object>
+            </property>
+          </object>
+        </child>
+      </object>
+    </child>
+
+    <!-- Calendar Settings Group -->
+    <child>
+      <object class="AdwPreferencesGroup">
+        <property name="title" translatable="true">Calendar</property>
+        <property name="description" translatable="true">Configure calendar display options</property>
+
+        <child>
+          <object class="AdwComboRow" id="calendarLanguage">
+            <property name="title" translatable="true">Display Language</property>
+            <property name="subtitle" translatable="true">Language for month and weekday names in calendar</property>
+            <property name="model">
+              <object class="GtkStringList">
+                <items>
+                  <item translatable="true">Amharic (አማርኛ)</item>
+                  <item translatable="true">English</item>
+                </items>
+              </object>
+            </property>
+          </object>
+        </child>
+      </object>
+    </child>
+
+    <!-- Legacy Settings Group -->
+    <child>
+      <object class="AdwPreferencesGroup">
+        <property name="title" translatable="true">Other</property>
         <child>
           <object class="AdwSwitchRow" id="sayHello">
             <property name="title" translatable="true">Say hello</property>

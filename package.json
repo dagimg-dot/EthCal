@@ -28,6 +28,7 @@
     "check:types": "tsc -noEmit"
   },
   "dependencies": {
-    "kenat": "latest"
+    "kenat": "latest",
+    "stignite": "file:packages/stignite"
   }
 }

@@ -21,4 +21,8 @@ esbuild.build({
         "resource:///org/gnome/shell/*",
         "resource:///org/gnome/Shell/Extensions/*",
     ],
+    // Resolve local stignite package
+    alias: {
+        stignite: "./packages/stignite/src/index.js",
+    },
 });

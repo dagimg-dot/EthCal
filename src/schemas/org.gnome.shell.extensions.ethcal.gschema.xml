@@ -1,8 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
     <schema id="org.gnome.shell.extensions.ethcal" path="/org/gnome/shell/extensions/ethcal/">
+        <!-- Status Bar Settings -->
+        <key name="status-bar-position" type="s">
+            <default>'left'</default>
+            <summary>Status bar position</summary>
+            <description>Position of the calendar indicator in the status bar</description>
+            <choices>
+                <choice value='left'/>
+                <choice value='center'/>
+                <choice value='right'/>
+            </choices>
+        </key>
+
+        <key name="status-bar-format" type="s">
+            <default>'full'</default>
+            <summary>Status bar text format</summary>
+            <description>Format for displaying date and time in status bar</description>
+            <choices>
+                <choice value='full'/>
+                <choice value='compact'/>
+                <choice value='medium'/>
+                <choice value='time-only'/>
+                <choice value='date-only'/>
+            </choices>
+        </key>
+
+        <!-- Calendar Settings -->
+        <key name="calendar-language" type="s">
+            <default>'amharic'</default>
+            <summary>Calendar display language</summary>
+            <description>Language for month and weekday names in calendar</description>
+            <choices>
+                <choice value='amharic'/>
+                <choice value='english'/>
+            </choices>
+        </key>
+
+        <!-- Legacy setting (keeping for compatibility) -->
         <key name="say-hello" type="b">
             <default>true</default>
+            <summary>Say hello</summary>
+            <description>Whether to say hello</description>
         </key>
     </schema>
 </schemalist>
