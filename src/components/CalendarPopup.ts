@@ -1,12 +1,13 @@
 import Clutter from "gi://Clutter";
 import St from "gi://St";
+import type { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "kenat";
 import { createDayInfoService } from "../services/dayInfoService.js";
 import { MonthGridService } from "../services/monthGrid.js";
 import { logger } from "../utils/logger.js";
 
-export const CalendarPopup = () => {
+export const CalendarPopup = (extension: Extension) => {
     const item = new PopupMenu.PopupBaseMenuItem({
         reactive: false,
         can_focus: false,
@@ -19,16 +20,22 @@ export const CalendarPopup = () => {
 
     item.add_child(outer);
 
-    // Top date header (weekday + full date)
+    // Top date header (weekday + full date + settings)
     const topHeader = new St.BoxLayout({
         vertical: true,
         style_class: "calendar-top",
     });
 
+    // Top row: weekday and settings icon
+    const topRow = new St.BoxLayout({
+        vertical: false,
+        style_class: "calendar-top-row",
+    });
+
     const today = new Kenat();
 
     // Top header format
-    // {weekdayName}
+    // {weekdayName}                    [settings icon]
     // {monthName} {day} {year}
 
     const weekdayTitle = new St.Label({
@@ -36,12 +43,35 @@ export const CalendarPopup = () => {
         style_class: "calendar-top-weekday",
     });
 
+    // Settings button
+    const settingsBtn = new St.Button({
+        style_class: "calendar-settings-button",
+        can_focus: true,
+    });
+    settingsBtn.set_child(
+        new St.Icon({
+            icon_name: "preferences-system-symbolic",
+            style_class: "popup-menu-icon",
+        }),
+    );
+
+    // Connect settings button to open preferences
+    settingsBtn.connect("clicked", () => {
+        // Open the preferences window
+        logger("Opening EthCal settings");
+        extension.openPreferences();
+    });
+
+    topRow.add_child(weekdayTitle);
+    topRow.add_child(new St.Widget({ x_expand: true })); // Spacer
+    topRow.add_child(settingsBtn);
+
     const fullDateTitle = new St.Label({
         text: today.format({ lang: "amharic" }),
         style_class: "calendar-top-date",
     });
 
-    topHeader.add_child(weekdayTitle);
+    topHeader.add_child(topRow);
     topHeader.add_child(fullDateTitle);
     outer.add_child(topHeader);
 

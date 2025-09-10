@@ -7,7 +7,7 @@ export default class EthCal extends Extension {
 
     enable() {
         logger("EthCal extension enabled");
-        this.#statusBarIndicator = new StatusBarIndicator();
+        this.#statusBarIndicator = new StatusBarIndicator(this);
     }
 
     disable() {

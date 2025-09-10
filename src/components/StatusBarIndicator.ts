@@ -1,5 +1,6 @@
 import Clutter from "gi://Clutter";
 import St from "gi://St";
+import type { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
@@ -13,8 +14,10 @@ export class StatusBarIndicator {
     #label: St.Label | undefined;
     #timeoutId: number | undefined;
     private readonly timeout = 1.0;
+    private extension: Extension;
 
-    constructor() {
+    constructor(extension: Extension) {
+        this.extension = extension;
         this.createIndicator();
         this.startTimeUpdate();
     }
@@ -35,7 +38,7 @@ export class StatusBarIndicator {
             "left",
         );
 
-        const calendarPopup = CalendarPopup();
+        const calendarPopup = CalendarPopup(this.extension);
         (this.#indicator.menu as unknown as PopupMenu.PopupMenu).addMenuItem(
             calendarPopup,
         );
