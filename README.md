@@ -17,7 +17,7 @@
   </p>
 
 <p align="center" style="margin-bottom: 30px;">
-  <img src="https://raw.githubusercontent.com/dagimg-dot/EthCal/main/public/preview.png" alt="EthCal" width="100">
+  <img src="https://raw.githubusercontent.com/dagimg-dot/EthCal/main/public/preview.png" alt="EthCal" width="400">
 </p>
 
 ✨ **EthCal GNOME Extension** ✨ - Customizable Ethiopian Calendar at your top bar
@@ -45,13 +45,6 @@ curl -fsSL https://raw.githubusercontent.com/dagimg-dot/EthCal/main/scripts/inst
 ```bash
 git clone https://github.com/dagimg-dot/EthCal.git && cd EthCal && ./scripts/install.sh
 ```
-
-**Features:**
-- ✅ Downloads latest release from GitHub automatically
-- ✅ No building required - uses pre-built extension
-- ✅ Automatic dependency checking
-- ✅ Handles installation and enabling
-- ✅ Provides clear error messages and troubleshooting
 
 **Options:**
 ```bash
