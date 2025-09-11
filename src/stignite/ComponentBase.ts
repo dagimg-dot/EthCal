@@ -1,3 +1,4 @@
+import type Gio from "gi://Gio";
 import type GObject from "gi://GObject";
 
 /**
@@ -6,7 +7,12 @@ import type GObject from "gi://GObject";
  * Copy this pattern across all your GNOME extensions for consistency
  */
 export abstract class ComponentBase {
+    protected settings: Gio.Settings;
     protected cleanup: (() => void)[] = [];
+
+    constructor(settings: Gio.Settings) {
+        this.settings = settings;
+    }
 
     /**
      * Add cleanup function - will be called when component is destroyed
@@ -25,6 +31,17 @@ export abstract class ComponentBase {
     ): void {
         const handlerId = object.connect(signalName, callback);
         this.addCleanup(() => object.disconnect(handlerId));
+    }
+
+    /**
+     * Simple settings signal connection - just pass the key and method reference
+     */
+    protected connectSettingSignal(key: string, callback: () => void): void {
+        this.connectSignal(
+            this.settings as unknown as GObject.Object,
+            `changed::${key}`,
+            callback,
+        );
     }
 
     /**

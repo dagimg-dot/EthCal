@@ -39,7 +39,7 @@ export class CalendarPopup extends ComponentBase {
     private props: CalendarPopupProps;
 
     constructor(props: CalendarPopupProps) {
-        super();
+        super(props.settings);
 
         this.props = props;
         const settings = props.settings as Gio.Settings;

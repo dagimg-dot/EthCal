@@ -47,7 +47,7 @@ export abstract class ExtensionBase extends Extension {
     /**
      * Get setting value with type safety
      */
-    protected getSetting<T>(key: string, defaultValue: T): T {
+    public getSetting<T>(key: string, defaultValue: T): T {
         try {
             if (typeof defaultValue === "string") {
                 return this.settings.get_string(key) as T;

@@ -1,6 +1,4 @@
 import Clutter from "gi://Clutter";
-import type Gio from "gi://Gio";
-import type GObject from "gi://GObject";
 import St from "gi://St";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
@@ -9,12 +7,16 @@ import Kenat from "kenat";
 import { ComponentBase } from "../stignite/ComponentBase.js";
 import type { ExtensionBase } from "../stignite/ExtensionBase.js";
 import type { PanelPosition, TextFormat } from "../types/index.js";
+import { logger } from "../utils/logger.js";
 import { CalendarPopup } from "./CalendarPopup.js";
 
 interface MainPanel {
     _leftBox?: St.BoxLayout;
     _rightBox?: St.BoxLayout;
     _centerBox?: St.BoxLayout;
+}
+
+interface MainPanelWithManager extends MainPanel {
     menuManager?: PopupMenu.PopupMenuManager;
 }
 
@@ -24,7 +26,6 @@ export class StatusBarIndicator extends ComponentBase {
     private _calendarPopup: CalendarPopup | undefined;
     private readonly timeout = 1.0;
     private extension: ExtensionBase;
-    private settings: Gio.Settings;
 
     // Simple state - no reactive framework needed
     private position: PanelPosition;
@@ -32,59 +33,38 @@ export class StatusBarIndicator extends ComponentBase {
     private useGeezNumerals: boolean;
 
     constructor(extension: ExtensionBase) {
-        super();
+        super(extension.getSettings());
 
         this.extension = extension;
-        this.settings = extension.getSettings();
 
         // Initialize state from settings
-        this.position =
-            (this.settings.get_string(
-                "status-bar-position",
-            ) as PanelPosition) || "left";
-        this.format =
-            (this.settings.get_string("status-bar-format") as TextFormat) ||
-            "full";
-        this.useGeezNumerals =
-            this.settings.get_boolean("use-geez-numerals") || false;
+        this.position = this.extension.getSetting(
+            "status-bar-position",
+            "left",
+        ) as PanelPosition;
+        this.format = this.extension.getSetting(
+            "status-bar-format",
+            "full",
+        ) as TextFormat;
+        this.useGeezNumerals = this.extension.getSetting(
+            "use-geez-numerals",
+            false,
+        );
 
         this.initialize();
     }
 
     private setupSettingsObservers(): void {
-        // Observe position changes
-        this.connectSignal(
-            this.settings as unknown as GObject.Object,
-            "changed::status-bar-position",
-            () => {
-                this.position = this.settings.get_string(
-                    "status-bar-position",
-                ) as PanelPosition;
-                this.updateIndicatorPosition();
-            },
+        this.connectSettingSignal("status-bar-position", () =>
+            this.updateIndicatorPosition(),
         );
 
-        // Observe format changes
-        this.connectSignal(
-            this.settings as unknown as GObject.Object,
-            "changed::status-bar-format",
-            () => {
-                this.format = this.settings.get_string(
-                    "status-bar-format",
-                ) as TextFormat;
-                this.updateTimeDisplay();
-            },
+        this.connectSettingSignal("status-bar-format", () =>
+            this.updateTimeDisplay(),
         );
 
-        // Observe Geez numerals changes
-        this.connectSignal(
-            this.settings as unknown as GObject.Object,
-            "changed::use-geez-numerals",
-            () => {
-                this.useGeezNumerals =
-                    this.settings.get_boolean("use-geez-numerals");
-                this.updateTimeDisplay();
-            },
+        this.connectSettingSignal("use-geez-numerals", () =>
+            this.updateTimeDisplay(),
         );
     }
 
@@ -124,7 +104,10 @@ export class StatusBarIndicator extends ComponentBase {
         popupMenu.addMenuItem(this._calendarPopup.getItem());
 
         // Register the menu with GNOME Shell's popup menu manager for proper focus handling
-        (Main.panel as unknown as MainPanel).menuManager?.addMenu(popupMenu, 1);
+        (Main.panel as unknown as MainPanelWithManager).menuManager?.addMenu(
+            popupMenu,
+            1,
+        );
 
         // Connect reset function to popup show event
         popupMenu.actor.connect("show", () => {
@@ -135,36 +118,29 @@ export class StatusBarIndicator extends ComponentBase {
     private updateIndicatorPosition() {
         if (!this._indicator) return;
 
+        // Get current position from settings
+        this.position = this.extension.getSetting(
+            "status-bar-position",
+            "left",
+        ) as PanelPosition;
+
         // Remove from current position first
         this.removeFromAllPanelPositions();
 
-        // Add to new position based on position using panel boxes
-        const panel = Main.panel as unknown as MainPanel;
-        switch (this.position) {
-            case "center":
-                if (panel._centerBox) {
-                    panel._centerBox.insert_child_at_index(
-                        this._indicator.container,
-                        1,
-                    );
-                }
-                break;
-            case "left":
-                if (panel._leftBox) {
-                    panel._leftBox.insert_child_at_index(
-                        this._indicator.container,
-                        1,
-                    );
-                }
-                break;
-            default: // right
-                if (panel._rightBox) {
-                    panel._rightBox.insert_child_at_index(
-                        this._indicator.container,
-                        1,
-                    );
-                }
-                break;
+        const methodMap = {
+            left: "_leftBox",
+            center: "_centerBox",
+            right: "_rightBox",
+        } as const;
+
+        const method = methodMap[this.position];
+
+        logger(`Inserting at position: ${this.position} and method: ${method}`);
+
+        if (method) {
+            (Main.panel as unknown as MainPanel)[
+                method as keyof MainPanel
+            ]?.insert_child_at_index(this._indicator.container, 1);
         }
     }
 
@@ -176,6 +152,16 @@ export class StatusBarIndicator extends ComponentBase {
 
     private updateTimeDisplay() {
         if (!this._label) return;
+
+        // Get current settings
+        this.format = this.extension.getSetting(
+            "status-bar-format",
+            "full",
+        ) as TextFormat;
+        this.useGeezNumerals = this.extension.getSetting(
+            "use-geez-numerals",
+            false,
+        );
 
         const formattedTime = this.getCurrentDateAndTime();
         this._label.text = formattedTime;
