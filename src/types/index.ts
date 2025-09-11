@@ -1,8 +1,10 @@
-// GNOME-specific types for EthCal
-
+import type Adw from "gi://Adw";
 import type Gio from "gi://Gio";
+import type Gtk from "gi://Gtk";
 import type { ExtensionBase } from "../stignite/ExtensionBase.js";
+
 export type PanelPosition = "left" | "center" | "right";
+
 export type TextFormat =
     | "full"
     | "compact"
@@ -54,6 +56,24 @@ export const isLanguage = (value: unknown): value is Language => {
         (value === "amharic" || value === "english")
     );
 };
+
+export interface GeneralPageChildren {
+    _statusBarPosition: Adw.ComboRow;
+    _statusBarFormat: Adw.ComboRow;
+    _calendarLanguage: Adw.ComboRow;
+    _useGeezNumerals: Adw.SwitchRow;
+}
+
+export interface AboutPageChildren {
+    _extensionIcon: Gtk.Image;
+    _extensionName: Gtk.Label;
+    _extensionVersion: Gtk.Label;
+    _linkWebsite: Gtk.Button;
+    _linkIssues: Gtk.Button;
+    _creditsRow: Adw.ExpanderRow;
+    _legalRow: Adw.ExpanderRow;
+    _extensionLicense: Gtk.TextView;
+}
 
 // Utility types
 export type DeepPartial<T> = {
