@@ -1,6 +1,7 @@
 /* Calendar Popup Styling */
 .calendar-popup {
   padding: 8px 4px;
+  min-width: 350px;
   max-width: 350px;
 }
 
@@ -26,6 +27,27 @@
 .calendar-nav-button {
   padding: 4px;
   border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+.calendar-nav-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+.calendar-nav-button:focus {
+  background-color: rgba(255, 255, 255, 0.15);
+  outline: 2px solid rgba(76, 141, 255, 0.6);
+}
+
+.calendar-settings-button {
+  padding: 4px;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+.calendar-settings-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+.calendar-settings-button:focus {
+  background-color: rgba(255, 255, 255, 0.15);
+  outline: 2px solid rgba(76, 141, 255, 0.6);
 }
 
 .calendar-grid {
