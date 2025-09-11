@@ -6,7 +6,11 @@ import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "kenat";
 import { ComponentBase } from "../stignite/ComponentBase.js";
 import type { ExtensionBase } from "../stignite/ExtensionBase.js";
-import type { FormatOption, PositionOption } from "../types/index.js";
+import type {
+    FormatOption,
+    LanguageOption,
+    PositionOption,
+} from "../types/index.js";
 import { SETTINGS } from "../types/index.js";
 import { CalendarPopup } from "./CalendarPopup.js";
 
@@ -31,6 +35,7 @@ export class StatusBarIndicator extends ComponentBase {
     private position: PositionOption;
     private format: FormatOption;
     private useGeezNumerals: boolean;
+    private language: LanguageOption;
 
     constructor(extension: ExtensionBase) {
         super(extension.getSettings());
@@ -49,6 +54,10 @@ export class StatusBarIndicator extends ComponentBase {
             SETTINGS.KEYS.USE_GEEZ_NUMERALS,
             SETTINGS.DEFAULTS.GEEZ_NUMERALS,
         );
+        this.language = this.extension.getSetting(
+            SETTINGS.KEYS.CALENDAR_LANGUAGE,
+            SETTINGS.DEFAULTS.LANGUAGE,
+        );
 
         this.initialize();
     }
@@ -63,6 +72,10 @@ export class StatusBarIndicator extends ComponentBase {
         );
 
         this.connectSettingSignal(SETTINGS.KEYS.USE_GEEZ_NUMERALS, () =>
+            this.updateTimeDisplay(),
+        );
+
+        this.connectSettingSignal(SETTINGS.KEYS.CALENDAR_LANGUAGE, () =>
             this.updateTimeDisplay(),
         );
     }
@@ -156,6 +169,10 @@ export class StatusBarIndicator extends ComponentBase {
             SETTINGS.KEYS.USE_GEEZ_NUMERALS,
             SETTINGS.DEFAULTS.GEEZ_NUMERALS,
         );
+        this.language = this.extension.getSetting(
+            SETTINGS.KEYS.CALENDAR_LANGUAGE,
+            SETTINGS.DEFAULTS.LANGUAGE,
+        );
 
         const formattedTime = this.getCurrentDateAndTime();
         this._label.text = formattedTime;
@@ -176,12 +193,12 @@ export class StatusBarIndicator extends ComponentBase {
 
             case "compact":
                 // ጥር ፪ ፲፪:፲፬ (Month Day HH:MM)
-                formattedString = `${kenat.format({ lang: "amharic", useGeez: useGeezNumerals })} ${kenat.time.hour}:${String(kenat.time.minute).padStart(2, "0")}`;
+                formattedString = `${kenat.format({ lang: this.language, useGeez: useGeezNumerals })} ${kenat.time.hour}:${String(kenat.time.minute).padStart(2, "0")}`;
                 break;
 
             case "medium":
                 // እሑድ ጥር ፪ ፲፪:፲፬ (Weekday Month Day HH:MM)
-                formattedString = `${kenat.formatWithWeekday("amharic", useGeezNumerals)} ${kenat.time.hour}:${String(kenat.time.minute).padStart(2, "0")}`;
+                formattedString = `${kenat.formatWithWeekday(this.language, useGeezNumerals)} ${kenat.time.hour}:${String(kenat.time.minute).padStart(2, "0")}`;
                 break;
 
             case "time-only":
@@ -192,7 +209,7 @@ export class StatusBarIndicator extends ComponentBase {
             case "date-only":
                 // እሑድ ፪ ፳፻፺፯ (Weekday Day Year)
                 formattedString = kenat.format({
-                    lang: "amharic",
+                    lang: this.language,
                     useGeez: useGeezNumerals,
                 });
                 break;
