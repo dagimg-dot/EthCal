@@ -205,10 +205,14 @@ export class CalendarPopup extends ComponentBase {
         if (!this.outer) return;
 
         // Grid container (7 columns: headers + days)
-        this.gridLayout = new Clutter.GridLayout();
+        this.gridLayout = new Clutter.GridLayout({
+            column_homogeneous: true,
+            row_homogeneous: true,
+        });
         this.grid = new St.Widget({
             layout_manager: this.gridLayout,
             style_class: "calendar-grid",
+            x_expand: true,
         });
         this.outer.add_child(this.grid);
     }
@@ -487,29 +491,19 @@ export class CalendarPopup extends ComponentBase {
     }
 
     private setupNavigation(): void {
-        if (!this.prevBtn || !this.nextBtn || !this.eventsTitle) return;
+        if (!this.prevBtn || !this.nextBtn) return;
 
         this.prevBtn.connect("clicked", () => {
             if (this.svc) {
                 this.svc.down();
-                this.render();
-                // Reset Today section when navigating
-                if (this.eventsTitle) {
-                    this.eventsTitle.text = "ዛሬ";
-                }
-                this.updateTodayEvents();
+                this.refresh();
             }
         });
 
         this.nextBtn.connect("clicked", () => {
             if (this.svc) {
                 this.svc.up();
-                this.render();
-                // Reset Today section when navigating
-                if (this.eventsTitle) {
-                    this.eventsTitle.text = "ዛሬ";
-                }
-                this.updateTodayEvents();
+                this.refresh();
             }
         });
     }
