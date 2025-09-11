@@ -13,13 +13,15 @@ const FastingKeys = {
 
 export type Language = "amharic" | "english";
 
+export type KenatDate = { year: number; month: number; day: number };
+
 export interface DayHoliday {
     key: string;
     name: string; // localized
     description: string; // localized
     tags: string[];
     movable: boolean;
-    ethiopian: { year: number; month: number; day: number };
+    ethiopian: KenatDate;
     gregorian?: { year: number; month: number; day: number };
 }
 
@@ -31,15 +33,15 @@ export interface FastingContext {
     totalDays: number;
     isActive: boolean;
     period: {
-        start: { year: number; month: number; day: number };
-        end: { year: number; month: number; day: number };
+        start: KenatDate;
+        end: KenatDate;
     } | null;
     tags?: string[];
 }
 
 export interface DayInformation {
-    ethiopian: { year: number; month: number; day: number };
-    gregorian: { year: number; month: number; day: number };
+    ethiopian: KenatDate;
+    gregorian: KenatDate;
     holidays: DayHoliday[];
     fastingPeriods: FastingContext[];
     isToday: boolean;
@@ -57,11 +59,7 @@ export class DayInfoService {
     /**
      * Get comprehensive information for a specific Ethiopian date
      */
-    getDayInformation(ethiopianDate: {
-        year: number;
-        month: number;
-        day: number;
-    }): DayInformation {
+    getDayInformation(ethiopianDate: KenatDate): DayInformation {
         const kenat = new Kenat(
             `${ethiopianDate.year}/${ethiopianDate.month}/${ethiopianDate.day}`,
         );
@@ -93,11 +91,7 @@ export class DayInfoService {
     /**
      * Get holidays for a specific date
      */
-    private getDayHolidays(ethiopianDate: {
-        year: number;
-        month: number;
-        day: number;
-    }): DayHoliday[] {
+    private getDayHolidays(ethiopianDate: KenatDate): DayHoliday[] {
         try {
             const monthHolidays = getHolidaysInMonth(
                 ethiopianDate.year,
@@ -119,11 +113,7 @@ export class DayInfoService {
     /**
      * Get fasting context for a specific date
      */
-    private getDayFastingContext(ethiopianDate: {
-        year: number;
-        month: number;
-        day: number;
-    }): FastingContext[] {
+    private getDayFastingContext(ethiopianDate: KenatDate): FastingContext[] {
         const fastingPeriods: FastingContext[] = [];
 
         // Check each fasting period
@@ -222,9 +212,9 @@ export class DayInfoService {
      * Check if a date falls within a range
      */
     private isDateInRange(
-        date: { year: number; month: number; day: number },
-        start: { year: number; month: number; day: number },
-        end: { year: number; month: number; day: number },
+        date: KenatDate,
+        start: KenatDate,
+        end: KenatDate,
     ): boolean {
         const dateValue = date.year * 10000 + date.month * 100 + date.day;
         const startValue = start.year * 10000 + start.month * 100 + start.day;
@@ -236,10 +226,7 @@ export class DayInfoService {
     /**
      * Calculate which day of the fasting period a date represents
      */
-    private calculateDayInPeriod(
-        date: { year: number; month: number; day: number },
-        start: { year: number; month: number; day: number },
-    ): number {
+    private calculateDayInPeriod(date: KenatDate, start: KenatDate): number {
         const kenat = new Kenat(`${date.year}/${date.month}/${date.day}`);
         const startKenat = new Kenat(
             `${start.year}/${start.month}/${start.day}`,
@@ -253,10 +240,7 @@ export class DayInfoService {
     /**
      * Calculate total days in a fasting period
      */
-    private calculateTotalDays(
-        start: { year: number; month: number; day: number },
-        end: { year: number; month: number; day: number },
-    ): number {
+    private calculateTotalDays(start: KenatDate, end: KenatDate): number {
         const startKenat = new Kenat(
             `${start.year}/${start.month}/${start.day}`,
         );
@@ -270,11 +254,7 @@ export class DayInfoService {
     /**
      * Check if a date is a Tsome Dihnet fasting day (Wed/Fri)
      */
-    private isTsomeDihnetFastDay(ethiopianDate: {
-        year: number;
-        month: number;
-        day: number;
-    }): boolean {
+    private isTsomeDihnetFastDay(ethiopianDate: KenatDate): boolean {
         const weekday = this.getWeekday(ethiopianDate);
         // Wednesday = 3, Friday = 5 (0-indexed)
         return weekday === 3 || weekday === 5;
@@ -283,11 +263,7 @@ export class DayInfoService {
     /**
      * Get weekday number (0 = Sunday, 1 = Monday, etc.)
      */
-    private getWeekday(ethiopianDate: {
-        year: number;
-        month: number;
-        day: number;
-    }): number {
+    private getWeekday(ethiopianDate: KenatDate): number {
         const kenat = new Kenat(
             `${ethiopianDate.year}/${ethiopianDate.month}/${ethiopianDate.day}`,
         );
@@ -332,7 +308,7 @@ export class DayInfoService {
     /**
      * Get all events for a day in a structured format
      */
-    getDayEvents(ethiopianDate: { year: number; month: number; day: number }) {
+    getDayEvents(ethiopianDate: KenatDate) {
         const dayInfo = this.getDayInformation(ethiopianDate);
 
         const events = [

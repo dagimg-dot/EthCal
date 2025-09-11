@@ -3,8 +3,8 @@ import Pango from "gi://Pango";
 import St from "gi://St";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "kenat";
+import type { KenatDate } from "../services/dayInfoService.js";
 import { createDayInfoService } from "../services/dayInfoService.js";
-import type { DayCell } from "../services/monthGrid.js";
 import { MonthGridService } from "../services/monthGrid.js";
 import { ComponentBase } from "../stignite/ComponentBase.js";
 import type { ExtensionBase } from "../stignite/ExtensionBase.js";
@@ -35,7 +35,7 @@ export class CalendarPopup extends ComponentBase {
 
     // settings
     private language: LanguageOption;
-    private selectedDate: DayCell["ethiopianNumeric"] | null = null;
+    private selectedDate: KenatDate | null = null;
     private useGeezNumerals: boolean;
 
     constructor(extension: ExtensionBase) {
@@ -43,11 +43,11 @@ export class CalendarPopup extends ComponentBase {
 
         this.extension = extension;
 
-        // Initialize state from settings
         this.language = this.extension.getSetting(
             SETTINGS.KEYS.CALENDAR_LANGUAGE,
             SETTINGS.DEFAULTS.LANGUAGE,
         );
+
         this.useGeezNumerals = this.extension.getSetting(
             SETTINGS.KEYS.USE_GEEZ_NUMERALS,
             SETTINGS.DEFAULTS.GEEZ_NUMERALS,
@@ -70,6 +70,13 @@ export class CalendarPopup extends ComponentBase {
         this.createUI();
         this.setupServices();
         this.setupNavigation();
+        this.refresh();
+    }
+
+    /**
+     * Refresh both calendar grid and today events section
+     */
+    private refresh(): void {
         this.render();
         this.updateTodayEvents();
     }
@@ -241,14 +248,17 @@ export class CalendarPopup extends ComponentBase {
     public resetToCurrentMonth(): void {
         if (!this.svc) return;
         this.svc.resetToCurrentMonth();
-        this.render();
-        this.updateTodayEvents();
+        this.refresh();
     }
 
     private updateLanguage(): void {
         if (!this.svc || !this.dayInfoService) return;
 
-        // Update services with new language
+        this.language = this.extension.getSetting(
+            SETTINGS.KEYS.CALENDAR_LANGUAGE,
+            SETTINGS.DEFAULTS.LANGUAGE,
+        );
+
         this.svc = new MonthGridService({
             weekStart: 1,
             weekdayLang: this.language,
@@ -256,43 +266,37 @@ export class CalendarPopup extends ComponentBase {
         });
         this.dayInfoService = createDayInfoService(this.language);
 
-        // Re-render with new language
-        this.render();
-        this.updateTodayEvents();
+        this.refresh();
     }
 
     private updateGeezNumerals(): void {
         if (!this.svc) return;
 
-        // Update service with new Geez numerals setting
+        this.useGeezNumerals = this.extension.getSetting(
+            SETTINGS.KEYS.USE_GEEZ_NUMERALS,
+            SETTINGS.DEFAULTS.GEEZ_NUMERALS,
+        );
+
         this.svc = new MonthGridService({
             weekStart: 1,
             weekdayLang: this.language,
             useGeez: this.useGeezNumerals,
         });
+        this.dayInfoService = createDayInfoService(this.language);
 
-        // Re-render with new numerals
-        this.render();
+        this.refresh();
     }
 
     private formatDate(day: number, month: number, year: number): string {
-        if (this.useGeezNumerals) {
-            // Convert to Geez numerals using Kenat library
-            const kenat = new Kenat();
-            const ethiopianDate = kenat.getEthiopian();
-            ethiopianDate.day = day;
-            ethiopianDate.month = month;
-            ethiopianDate.year = year;
+        const dateString = `${year}-${month}-${day}`;
+        const kenat = new Kenat(dateString);
 
-            // Use Kenat's formatting with Geez numerals
-            return kenat.format({
-                lang: this.language,
-                useGeez: true,
-            });
-        } else {
-            // Use Arabic numerals
-            return `${day}/${month}/${year}`;
-        }
+        const formattedDate = kenat.format({
+            lang: this.language,
+            useGeez: this.useGeezNumerals,
+        });
+
+        return `${month} - ${formattedDate}`;
     }
 
     private clearGrid(): void {
@@ -312,10 +316,27 @@ export class CalendarPopup extends ComponentBase {
         this.eventsList.get_children().forEach((c) => c.destroy());
 
         const today = Kenat.now().getEthiopian();
-        const dayEvents = this.dayInfoService.getDayEvents(today);
 
-        if (dayEvents.hasEvents) {
-            dayEvents.events.forEach((event) => {
+        // Update the title with today's date using current formatting settings
+        this.eventsTitle.text = this.formatDate(
+            today.day,
+            today.month,
+            today.year,
+        );
+
+        const dayEvents = this.dayInfoService.getDayEvents(today);
+        this.renderEventList(dayEvents.events, this.eventsList);
+    }
+
+    /**
+     * Render a list of events into a container
+     */
+    private renderEventList(
+        events: { title: string; description: string }[],
+        container: St.BoxLayout,
+    ): void {
+        if (events.length > 0) {
+            events.forEach((event) => {
                 const eventRow = new St.BoxLayout({
                     vertical: false,
                     style_class: "calendar-event",
@@ -357,14 +378,14 @@ export class CalendarPopup extends ComponentBase {
 
                 eventRow.add_child(dot);
                 eventRow.add_child(eventContent);
-                this.eventsList?.add_child(eventRow);
+                container.add_child(eventRow);
             });
         } else {
             const empty = new St.Label({
                 text: "ምንም ማስታወሻ አልተገኘም",
                 style_class: "calendar-event-empty",
             });
-            this.eventsList?.add_child(empty);
+            container.add_child(empty);
         }
     }
 
@@ -435,8 +456,6 @@ export class CalendarPopup extends ComponentBase {
             }
 
             btn.connect("clicked", () => {
-                const e = day.ethiopian;
-
                 // Update selected date state using original numeric values
                 this.selectedDate = day.ethiopianNumeric;
 
@@ -450,66 +469,15 @@ export class CalendarPopup extends ComponentBase {
                         this.selectedDate,
                     );
 
+                    // Use numeric values for formatting, not Geez display values
                     this.eventsTitle.text = this.formatDate(
-                        e.day as number,
-                        e.month as number,
-                        e.year as number,
+                        this.selectedDate.day,
+                        this.selectedDate.month,
+                        this.selectedDate.year,
                     );
 
                     this.eventsList.get_children().forEach((c) => c.destroy());
-
-                    if (dayEvents.hasEvents) {
-                        dayEvents.events.forEach((event) => {
-                            const eventRow = new St.BoxLayout({
-                                vertical: false,
-                                style_class: "calendar-event",
-                            });
-
-                            const dot = new St.Label({
-                                text: "•",
-                                style_class: "calendar-event-dot",
-                            });
-
-                            const eventContent = new St.BoxLayout({
-                                vertical: true,
-                                style_class: "calendar-event-content",
-                            });
-
-                            const title = new St.Label({
-                                text: event.title,
-                                style_class: "calendar-event-title",
-                                x_expand: true,
-                                y_expand: false,
-                                x_align: Clutter.ActorAlign.START,
-                            });
-
-                            const description = new St.Label({
-                                text: event.description,
-                                style_class: "calendar-event-description",
-                                x_expand: true,
-                                y_expand: true,
-                                x_align: Clutter.ActorAlign.START,
-                            });
-
-                            // Enable text wrapping on the underlying Clutter.Text actor
-                            description.clutter_text.line_wrap = true;
-                            description.clutter_text.line_wrap_mode =
-                                Pango.WrapMode.WORD_CHAR;
-
-                            eventContent.add_child(title);
-                            eventContent.add_child(description);
-
-                            eventRow.add_child(dot);
-                            eventRow.add_child(eventContent);
-                            this.eventsList?.add_child(eventRow);
-                        });
-                    } else {
-                        const empty = new St.Label({
-                            text: "ምንም ማስታወሻ አልተገኘም",
-                            style_class: "calendar-event-empty",
-                        });
-                        this.eventsList?.add_child(empty);
-                    }
+                    this.renderEventList(dayEvents.events, this.eventsList);
                 }
             });
 

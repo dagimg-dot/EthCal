@@ -37,7 +37,6 @@ export class StatusBarIndicator extends ComponentBase {
 
         this.extension = extension;
 
-        // Initialize state from settings
         this.position = this.extension.getSetting(
             SETTINGS.KEYS.STATUS_BAR_POSITION,
             SETTINGS.DEFAULTS.POSITION,

@@ -25,7 +25,7 @@ export const GeneralPage = GObject.registerClass(
             // Helper function to bind combo box with string setting
             const bindComboBox = <T extends readonly string[]>(
                 settingKey: string,
-                comboBox: GObject.Object,
+                comboBox: Adw.ComboRow,
                 options: T,
                 defaultValue: T[number],
             ) => {
@@ -36,7 +36,7 @@ export const GeneralPage = GObject.registerClass(
                     Gio.SettingsBindFlags.DEFAULT,
                 );
                 comboBox.connect("notify::selected", () => {
-                    const selectedIndex = (comboBox as any).selected;
+                    const selectedIndex = comboBox.selected;
                     const value = options[selectedIndex] || defaultValue;
                     settings.set_string(settingKey, value);
                 });
@@ -92,12 +92,12 @@ export const GeneralPage = GObject.registerClass(
             // Helper function to set combo box selection from string value
             const setComboBoxSelection = <T extends readonly string[]>(
                 settingKey: string,
-                comboBox: GObject.Object,
+                comboBox: Adw.ComboRow,
                 options: T,
             ) => {
                 const value = settings.get_string(settingKey);
                 const index = options.indexOf(value as T[number]);
-                (comboBox as any).selected = index >= 0 ? index : 0;
+                comboBox.selected = index >= 0 ? index : 0;
             };
 
             // Update all combo boxes with current settings
