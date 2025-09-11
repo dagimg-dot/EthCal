@@ -25,7 +25,9 @@
     "lint:unsafe": "biome lint --write --unsafe .",
     "format": "biome format --write .",
     "check": "biome check --write .",
-    "check:types": "tsc -noEmit"
+    "check:types": "tsc -noEmit",
+    "bump": "bun scripts/bump-version.js bump",
+    "release": "bun scripts/bump-version.js release"
   },
   "dependencies": {
     "kenat": "latest",
