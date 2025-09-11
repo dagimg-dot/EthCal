@@ -122,7 +122,7 @@ export class CalendarPopup extends ComponentBase {
         // {weekdayName}                    [settings icon]
         // {monthName} {day} {year}
         this.weekdayTitle = new St.Label({
-            text: today.formatWithWeekday("amharic", false).split(",")[0],
+            text: today.formatWithWeekday(this.language, false).split(",")[0],
             style_class: "calendar-top-weekday",
         });
 
@@ -149,7 +149,7 @@ export class CalendarPopup extends ComponentBase {
         topRow.add_child(this.settingsBtn);
 
         this.fullDateTitle = new St.Label({
-            text: today.format({ lang: "amharic" }),
+            text: today.format({ lang: this.language }),
             style_class: "calendar-top-date",
         });
 
@@ -226,7 +226,7 @@ export class CalendarPopup extends ComponentBase {
         });
 
         this.eventsTitle = new St.Label({
-            text: "ዛሬ",
+            text: this.getLocalizedText("today"),
             style_class: "calendar-events-title",
         });
 
@@ -270,6 +270,9 @@ export class CalendarPopup extends ComponentBase {
         });
         this.dayInfoService = createDayInfoService(this.language);
 
+        // Update top header with new language
+        this.updateTopHeader();
+
         this.refresh();
     }
 
@@ -289,6 +292,42 @@ export class CalendarPopup extends ComponentBase {
         this.dayInfoService = createDayInfoService(this.language);
 
         this.refresh();
+    }
+
+    /**
+     * Get localized strings based on current language setting
+     */
+    private getLocalizedText(key: string): string {
+        const texts = {
+            today: {
+                amharic: "ዛሬ",
+                english: "Today",
+            },
+            noEvents: {
+                amharic: "ምንም ማስታወሻ አልተገኘም",
+                english: "No events found",
+            },
+        };
+
+        return (
+            texts[key as keyof typeof texts]?.[this.language] ||
+            texts[key as keyof typeof texts]?.amharic ||
+            ""
+        );
+    }
+
+    /**
+     * Update top header with current language settings
+     */
+    private updateTopHeader(): void {
+        if (!this.weekdayTitle || !this.fullDateTitle) return;
+
+        const today = new Kenat();
+
+        this.weekdayTitle.text = today
+            .formatWithWeekday(this.language, false)
+            .split(",")[0];
+        this.fullDateTitle.text = today.format({ lang: this.language });
     }
 
     private formatDate(day: number, month: number, year: number): string {
@@ -386,7 +425,7 @@ export class CalendarPopup extends ComponentBase {
             });
         } else {
             const empty = new St.Label({
-                text: "ምንም ማስታወሻ አልተገኘም",
+                text: this.getLocalizedText("noEvents"),
                 style_class: "calendar-event-empty",
             });
             container.add_child(empty);

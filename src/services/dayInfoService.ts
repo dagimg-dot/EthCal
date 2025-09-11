@@ -302,7 +302,10 @@ export class DayInfoService {
         if (fasting.key === FastingKeys.TSOME_DIHENET) {
             return fasting.name;
         }
-        return `ቀን ${fasting.currentDay} / ${fasting.totalDays} - ${fasting.name}`;
+
+        const fastingString = `${fasting.currentDay} / ${fasting.totalDays} - ${fasting.name}`;
+
+        return `${this.language === "amharic" ? "ቀን" : "Day"} ${fastingString}`;
     }
 
     /**
