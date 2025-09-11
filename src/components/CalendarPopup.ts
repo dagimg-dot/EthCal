@@ -291,6 +291,8 @@ export class CalendarPopup extends ComponentBase {
         });
         this.dayInfoService = createDayInfoService(this.language);
 
+        this.updateTopHeader();
+
         this.refresh();
     }
 
@@ -327,7 +329,10 @@ export class CalendarPopup extends ComponentBase {
         this.weekdayTitle.text = today
             .formatWithWeekday(this.language, false)
             .split(",")[0];
-        this.fullDateTitle.text = today.format({ lang: this.language });
+        this.fullDateTitle.text = today.format({
+            lang: this.language,
+            useGeez: this.useGeezNumerals,
+        });
     }
 
     private formatDate(day: number, month: number, year: number): string {
