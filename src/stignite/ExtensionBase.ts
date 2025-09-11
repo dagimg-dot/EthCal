@@ -11,8 +11,8 @@ export abstract class ExtensionBase extends Extension {
     private components: ComponentBase[] = [];
     private cleanup: (() => void)[] = [];
 
-    constructor(args: ExtensionMetadata) {
-        super(args);
+    constructor(metadata: ExtensionMetadata) {
+        super(metadata);
         this.settings = this.getSettings();
         this.initialize();
     }

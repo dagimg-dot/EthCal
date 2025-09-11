@@ -19,9 +19,9 @@ interface MainPanel {
 }
 
 export class StatusBarIndicator extends ComponentBase {
-    #indicator: PanelMenu.Button | undefined;
-    #label: St.Label | undefined;
-    #calendarPopup: CalendarPopup | undefined;
+    private _indicator: PanelMenu.Button | undefined;
+    private _label: St.Label | undefined;
+    private _calendarPopup: CalendarPopup | undefined;
     private readonly timeout = 1.0;
     private extension: ExtensionBase;
     private settings: Gio.Settings;
@@ -96,13 +96,13 @@ export class StatusBarIndicator extends ComponentBase {
     }
 
     private createUI() {
-        this.#indicator = new PanelMenu.Button(0, "Ethiopian Calendar", false);
+        this._indicator = new PanelMenu.Button(0, "Ethiopian Calendar", false);
 
-        this.#label = new St.Label({
+        this._label = new St.Label({
             y_align: Clutter.ActorAlign.CENTER,
         });
 
-        this.#indicator.add_child(this.#label);
+        this._indicator.add_child(this._label);
 
         // Position indicator in panel (this will add it to the correct position)
         this.updateIndicatorPosition();
@@ -112,28 +112,28 @@ export class StatusBarIndicator extends ComponentBase {
     }
 
     private setupCalendarPopup(): void {
-        if (!this.#indicator) return;
+        if (!this._indicator) return;
 
         // Create CalendarPopup component
-        this.#calendarPopup = new CalendarPopup({
+        this._calendarPopup = new CalendarPopup({
             extension: this.extension,
             settings: this.settings,
         });
 
-        const popupMenu = this.#indicator.menu as PopupMenu.PopupMenu;
-        popupMenu.addMenuItem(this.#calendarPopup.getItem());
+        const popupMenu = this._indicator.menu as PopupMenu.PopupMenu;
+        popupMenu.addMenuItem(this._calendarPopup.getItem());
 
         // Register the menu with GNOME Shell's popup menu manager for proper focus handling
         (Main.panel as unknown as MainPanel).menuManager?.addMenu(popupMenu, 1);
 
         // Connect reset function to popup show event
         popupMenu.actor.connect("show", () => {
-            this.#calendarPopup?.resetToCurrentMonth();
+            this._calendarPopup?.resetToCurrentMonth();
         });
     }
 
     private updateIndicatorPosition() {
-        if (!this.#indicator) return;
+        if (!this._indicator) return;
 
         // Remove from current position first
         this.removeFromAllPanelPositions();
@@ -144,7 +144,7 @@ export class StatusBarIndicator extends ComponentBase {
             case "center":
                 if (panel._centerBox) {
                     panel._centerBox.insert_child_at_index(
-                        this.#indicator.container,
+                        this._indicator.container,
                         1,
                     );
                 }
@@ -152,7 +152,7 @@ export class StatusBarIndicator extends ComponentBase {
             case "left":
                 if (panel._leftBox) {
                     panel._leftBox.insert_child_at_index(
-                        this.#indicator.container,
+                        this._indicator.container,
                         1,
                     );
                 }
@@ -160,7 +160,7 @@ export class StatusBarIndicator extends ComponentBase {
             default: // right
                 if (panel._rightBox) {
                     panel._rightBox.insert_child_at_index(
-                        this.#indicator.container,
+                        this._indicator.container,
                         1,
                     );
                 }
@@ -175,10 +175,10 @@ export class StatusBarIndicator extends ComponentBase {
     }
 
     private updateTimeDisplay() {
-        if (!this.#label) return;
+        if (!this._label) return;
 
         const formattedTime = this.getCurrentDateAndTime();
-        this.#label.text = formattedTime;
+        this._label.text = formattedTime;
     }
 
     private getCurrentDateAndTime(): string {
@@ -238,35 +238,35 @@ export class StatusBarIndicator extends ComponentBase {
     }
 
     private removeFromAllPanelPositions() {
-        if (!this.#indicator) return;
+        if (!this._indicator) return;
 
         (Main.panel as unknown as MainPanel)._leftBox?.remove_child(
-            this.#indicator.container,
+            this._indicator.container,
         );
         (Main.panel as unknown as MainPanel)._rightBox?.remove_child(
-            this.#indicator.container,
+            this._indicator.container,
         );
         (Main.panel as unknown as MainPanel)._centerBox?.remove_child(
-            this.#indicator.container,
+            this._indicator.container,
         );
     }
 
     destroy(): void {
         // Clean up calendar popup
-        if (this.#calendarPopup) {
-            this.#calendarPopup.destroy();
-            this.#calendarPopup = undefined;
+        if (this._calendarPopup) {
+            this._calendarPopup.destroy();
+            this._calendarPopup = undefined;
         }
 
         // Clean up indicator
-        if (this.#indicator) {
+        if (this._indicator) {
             this.removeFromAllPanelPositions();
-            this.#indicator.destroy();
-            this.#indicator = undefined;
+            this._indicator.destroy();
+            this._indicator = undefined;
         }
 
         // Clean up references
-        this.#label = undefined;
+        this._label = undefined;
 
         // Call parent destroy to clean up all registered cleanups
         super.destroy();
