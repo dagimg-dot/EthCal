@@ -13,6 +13,7 @@ export const GeneralPage = GObject.registerClass(
         InternalChildren: [
             "statusBarPosition",
             "statusBarFormat",
+            "statusBarCustomFormat",
             "calendarLanguage",
             "useGeezNumerals",
         ],
@@ -29,6 +30,10 @@ export const GeneralPage = GObject.registerClass(
                 options: T,
                 defaultValue: T[number],
             ) => {
+                if (!comboBox) {
+                    logger(`Warning: ComboBox for ${settingKey} is null`);
+                    return;
+                }
                 settings.bind(
                     settingKey,
                     comboBox,
@@ -55,6 +60,20 @@ export const GeneralPage = GObject.registerClass(
                 SETTINGS.OPTIONS.FORMAT,
                 SETTINGS.DEFAULTS.FORMAT,
             );
+
+            // Special handling for status bar format to show/hide custom format entry
+            if (children._statusBarFormat) {
+                children._statusBarFormat.connect("notify::selected", () => {
+                    const selectedIndex = children._statusBarFormat.selected;
+                    const value =
+                        SETTINGS.OPTIONS.FORMAT[selectedIndex] ||
+                        SETTINGS.DEFAULTS.FORMAT;
+                    this._updateCustomFormatVisibility(children, value);
+                });
+            } else {
+                logger("Warning: Status bar format combo box is null");
+            }
+
             bindComboBox(
                 SETTINGS.KEYS.CALENDAR_LANGUAGE,
                 children._calendarLanguage,
@@ -63,26 +82,50 @@ export const GeneralPage = GObject.registerClass(
             );
 
             // Special handling for calendar language to update Geez numerals switch
-            children._calendarLanguage.connect("notify::selected", () => {
-                const selectedIndex = children._calendarLanguage.selected;
-                const value =
-                    SETTINGS.OPTIONS.LANGUAGE[selectedIndex] ||
-                    SETTINGS.DEFAULTS.LANGUAGE;
-                settings.set_string(SETTINGS.KEYS.CALENDAR_LANGUAGE, value);
-                this._updateGeezNumeralsSwitch(settings, children);
-            });
+            if (children._calendarLanguage) {
+                children._calendarLanguage.connect("notify::selected", () => {
+                    const selectedIndex = children._calendarLanguage.selected;
+                    const value =
+                        SETTINGS.OPTIONS.LANGUAGE[selectedIndex] ||
+                        SETTINGS.DEFAULTS.LANGUAGE;
+                    settings.set_string(SETTINGS.KEYS.CALENDAR_LANGUAGE, value);
+                    this._updateGeezNumeralsSwitch(settings, children);
+                });
+            } else {
+                logger("Warning: Calendar language combo box is null");
+            }
 
             // Geez numerals setting
-            settings.bind(
-                SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-                children._useGeezNumerals,
-                "active",
-                Gio.SettingsBindFlags.DEFAULT,
-            );
+            if (children._useGeezNumerals) {
+                settings.bind(
+                    SETTINGS.KEYS.USE_GEEZ_NUMERALS,
+                    children._useGeezNumerals,
+                    "active",
+                    Gio.SettingsBindFlags.DEFAULT,
+                );
+            } else {
+                logger("Warning: Geez numerals switch is null");
+            }
+
+            // Custom format setting
+            if (children._statusBarCustomFormat) {
+                settings.bind(
+                    SETTINGS.KEYS.STATUS_BAR_CUSTOM_FORMAT,
+                    children._statusBarCustomFormat,
+                    "text",
+                    Gio.SettingsBindFlags.DEFAULT,
+                );
+            } else {
+                logger("Warning: Custom format entry is null");
+            }
 
             // Initialize combo boxes and switches with current values
             this._updateComboBoxes(settings, children);
             this._updateGeezNumeralsSwitch(settings, children);
+            this._updateCustomFormatVisibility(
+                children,
+                settings.get_string(SETTINGS.KEYS.STATUS_BAR_FORMAT),
+            );
         }
 
         private _updateComboBoxes(
@@ -95,6 +138,12 @@ export const GeneralPage = GObject.registerClass(
                 comboBox: Adw.ComboRow,
                 options: T,
             ) => {
+                if (!comboBox) {
+                    logger(
+                        `Warning: ComboBox for ${settingKey} is null, skipping update`,
+                    );
+                    return;
+                }
                 const value = settings.get_string(settingKey);
                 const index = options.indexOf(value as T[number]);
                 comboBox.selected = index >= 0 ? index : 0;
@@ -122,6 +171,13 @@ export const GeneralPage = GObject.registerClass(
             settings: Gio.Settings,
             children: GeneralPageChildren,
         ) {
+            if (!children._useGeezNumerals) {
+                logger(
+                    "Warning: Geez numerals switch is null, skipping update",
+                );
+                return;
+            }
+
             const languageValue = settings.get_string(
                 SETTINGS.KEYS.CALENDAR_LANGUAGE,
             );
@@ -134,6 +190,22 @@ export const GeneralPage = GObject.registerClass(
             if (isEnglish && children._useGeezNumerals.active) {
                 children._useGeezNumerals.active = false;
             }
+        }
+
+        private _updateCustomFormatVisibility(
+            children: GeneralPageChildren,
+            formatValue: string,
+        ) {
+            if (!children._statusBarCustomFormat) {
+                logger(
+                    "Warning: Custom format entry is null, skipping visibility update",
+                );
+                return;
+            }
+
+            // Show custom format entry only when "custom" format is selected
+            const isCustomFormat = formatValue === "custom";
+            children._statusBarCustomFormat.visible = isCustomFormat;
         }
     },
 );

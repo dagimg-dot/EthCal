@@ -23,7 +23,14 @@
                 <choice value='medium'/>
                 <choice value='time-only'/>
                 <choice value='date-only'/>
+                <choice value='custom'/>
             </choices>
+        </key>
+
+        <key name="status-bar-custom-format" type="s">
+            <default>'dday, mnam dd, year hh:mm'</default>
+            <summary>Custom status bar format</summary>
+            <description>Custom format string using tokens: dday, dd, mnam, year, hh, mm, tp</description>
         </key>
 
         <!-- Calendar Settings -->

@@ -39,9 +39,18 @@
                   <item translatable="true">Medium (Weekday Month Day HH:MM)</item>
                   <item translatable="true">Time Only (HH:MM TimeDesc)</item>
                   <item translatable="true">Date Only (Weekday Day Year)</item>
+                  <item translatable="true">Custom</item>
                 </items>
               </object>
             </property>
+          </object>
+        </child>
+
+        <child>
+          <object class="AdwEntryRow" id="statusBarCustomFormat">
+            <property name="title" translatable="true">Custom Format</property>
+            <property name="text">dday, mnam dd, year hh:mm</property>
+            <property name="show-apply-button">true</property>
           </object>
         </child>
       </object>

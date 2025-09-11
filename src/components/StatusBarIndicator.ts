@@ -4,6 +4,10 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "kenat";
+import {
+    createDateFormatterService,
+    type DateFormatterService,
+} from "../services/dateFormatter.js";
 import { ComponentBase } from "../stignite/ComponentBase.js";
 import type { ExtensionBase } from "../stignite/ExtensionBase.js";
 import type {
@@ -31,9 +35,13 @@ export class StatusBarIndicator extends ComponentBase {
     private readonly timeout = 1.0;
     private extension: ExtensionBase;
 
+    // services
+    private dateFormatter: DateFormatterService | undefined;
+
     // settings
     private position: PositionOption;
     private format: FormatOption;
+    private customFormat: string;
     private useGeezNumerals: boolean;
     private language: LanguageOption;
 
@@ -50,6 +58,10 @@ export class StatusBarIndicator extends ComponentBase {
             SETTINGS.KEYS.STATUS_BAR_FORMAT,
             SETTINGS.DEFAULTS.FORMAT,
         );
+        this.customFormat = this.extension.getSetting(
+            SETTINGS.KEYS.STATUS_BAR_CUSTOM_FORMAT,
+            SETTINGS.DEFAULTS.CUSTOM_FORMAT,
+        );
         this.useGeezNumerals = this.extension.getSetting(
             SETTINGS.KEYS.USE_GEEZ_NUMERALS,
             SETTINGS.DEFAULTS.GEEZ_NUMERALS,
@@ -58,6 +70,12 @@ export class StatusBarIndicator extends ComponentBase {
             SETTINGS.KEYS.CALENDAR_LANGUAGE,
             SETTINGS.DEFAULTS.LANGUAGE,
         );
+
+        // Initialize date formatter service
+        this.dateFormatter = createDateFormatterService({
+            language: this.language,
+            useGeezNumerals: this.useGeezNumerals,
+        });
 
         this.initialize();
     }
@@ -68,6 +86,10 @@ export class StatusBarIndicator extends ComponentBase {
         );
 
         this.connectSettingSignal(SETTINGS.KEYS.STATUS_BAR_FORMAT, () =>
+            this.updateTimeDisplay(),
+        );
+
+        this.connectSettingSignal(SETTINGS.KEYS.STATUS_BAR_CUSTOM_FORMAT, () =>
             this.updateTimeDisplay(),
         );
 
@@ -158,12 +180,16 @@ export class StatusBarIndicator extends ComponentBase {
     }
 
     private updateTimeDisplay() {
-        if (!this._label) return;
+        if (!this._label || !this.dateFormatter) return;
 
         // Get current settings
         this.format = this.extension.getSetting(
             SETTINGS.KEYS.STATUS_BAR_FORMAT,
             SETTINGS.DEFAULTS.FORMAT,
+        );
+        this.customFormat = this.extension.getSetting(
+            SETTINGS.KEYS.STATUS_BAR_CUSTOM_FORMAT,
+            SETTINGS.DEFAULTS.CUSTOM_FORMAT,
         );
         this.useGeezNumerals = this.extension.getSetting(
             SETTINGS.KEYS.USE_GEEZ_NUMERALS,
@@ -174,64 +200,38 @@ export class StatusBarIndicator extends ComponentBase {
             SETTINGS.DEFAULTS.LANGUAGE,
         );
 
+        // Update date formatter options
+        this.dateFormatter.updateOptions({
+            language: this.language,
+            useGeezNumerals: this.useGeezNumerals,
+        });
+
         const formattedTime = this.getCurrentDateAndTime();
         this._label.text = formattedTime;
     }
 
     private getCurrentDateAndTime(): string {
+        if (!this.dateFormatter) return "";
+
         const kenat = new Kenat();
-        const format = this.format;
-        const useGeezNumerals = this.useGeezNumerals || false;
 
-        let formattedString: string;
-
-        switch (format) {
-            case "full":
-                // እሑድ ፪ ፳፻፺፯ ፲፪:፲፬ ማታ (Weekday Day Year HH:MM TimeDesc)
-                formattedString = kenat.toString();
-                break;
-
-            case "compact":
-                // ጥር ፪ ፲፪:፲፬ (Month Day HH:MM)
-                formattedString = `${kenat.format({ lang: this.language, useGeez: useGeezNumerals })} ${kenat.time.hour}:${String(kenat.time.minute).padStart(2, "0")}`;
-                break;
-
-            case "medium":
-                // እሑድ ጥር ፪ ፲፪:፲፬ (Weekday Month Day HH:MM)
-                formattedString = `${kenat.formatWithWeekday(this.language, useGeezNumerals)} ${kenat.time.hour}:${String(kenat.time.minute).padStart(2, "0")}`;
-                break;
-
-            case "time-only":
-                // ፲፪:፲፬ ማታ (HH:MM TimeDesc)
-                formattedString = `${kenat.time.hour}:${String(kenat.time.minute).padStart(2, "0")} ${kenat.time.period}`;
-                break;
-
-            case "date-only":
-                // እሑድ ፪ ፳፻፺፯ (Weekday Day Year)
-                formattedString = kenat.format({
-                    lang: this.language,
-                    useGeez: useGeezNumerals,
-                });
-                break;
-
-            default:
-                formattedString = kenat.toString();
+        // Use custom format if selected, otherwise use predefined formats
+        if (this.format === "custom") {
+            return this.dateFormatter.format(this.customFormat, kenat);
         }
 
-        // Adjust time period labels based on time (for formats that include time)
-        if (
-            format !== "date-only" &&
-            kenat.time.hour >= 6 &&
-            kenat.time.minute >= 0
-        ) {
-            if (kenat.time.period === "night") {
-                formattedString = formattedString.replace("ማታ", "ሌሊት");
-            } else if (kenat.time.period === "day") {
-                formattedString = formattedString.replace("ጠዋት", "ከሰዓት");
-            }
-        }
+        // Map predefined formats to custom format strings
+        const formatMap: Record<Exclude<FormatOption, "custom">, string> = {
+            full: "dday dd mnam year hh:mm tp",
+            compact: "mnam dd hh:mm",
+            medium: "dday mnam dd hh:mm",
+            "time-only": "hh:mm tp",
+            "date-only": "dday dd mnam year",
+        };
 
-        return formattedString;
+        const formatString =
+            formatMap[this.format as Exclude<FormatOption, "custom">];
+        return this.dateFormatter.format(formatString, kenat);
     }
 
     private removeFromAllPanelPositions() {
@@ -254,6 +254,9 @@ export class StatusBarIndicator extends ComponentBase {
             this._calendarPopup.destroy();
             this._calendarPopup = undefined;
         }
+
+        // Clean up date formatter
+        this.dateFormatter = undefined;
 
         // Clean up indicator
         if (this._indicator) {
