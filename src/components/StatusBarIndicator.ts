@@ -6,8 +6,8 @@ import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "kenat";
 import { ComponentBase } from "../stignite/ComponentBase.js";
 import type { ExtensionBase } from "../stignite/ExtensionBase.js";
-import type { PanelPosition, TextFormat } from "../types/index.js";
-import { logger } from "../utils/logger.js";
+import type { FormatOption, PositionOption } from "../types/index.js";
+import { SETTINGS } from "../types/index.js";
 import { CalendarPopup } from "./CalendarPopup.js";
 
 interface MainPanel {
@@ -27,9 +27,9 @@ export class StatusBarIndicator extends ComponentBase {
     private readonly timeout = 1.0;
     private extension: ExtensionBase;
 
-    // Simple state - no reactive framework needed
-    private position: PanelPosition;
-    private format: TextFormat;
+    // settings
+    private position: PositionOption;
+    private format: FormatOption;
     private useGeezNumerals: boolean;
 
     constructor(extension: ExtensionBase) {
@@ -39,31 +39,31 @@ export class StatusBarIndicator extends ComponentBase {
 
         // Initialize state from settings
         this.position = this.extension.getSetting(
-            "status-bar-position",
-            "left",
-        ) as PanelPosition;
+            SETTINGS.KEYS.STATUS_BAR_POSITION,
+            SETTINGS.DEFAULTS.POSITION,
+        );
         this.format = this.extension.getSetting(
-            "status-bar-format",
-            "full",
-        ) as TextFormat;
+            SETTINGS.KEYS.STATUS_BAR_FORMAT,
+            SETTINGS.DEFAULTS.FORMAT,
+        );
         this.useGeezNumerals = this.extension.getSetting(
-            "use-geez-numerals",
-            false,
+            SETTINGS.KEYS.USE_GEEZ_NUMERALS,
+            SETTINGS.DEFAULTS.GEEZ_NUMERALS,
         );
 
         this.initialize();
     }
 
     private setupSettingsObservers(): void {
-        this.connectSettingSignal("status-bar-position", () =>
+        this.connectSettingSignal(SETTINGS.KEYS.STATUS_BAR_POSITION, () =>
             this.updateIndicatorPosition(),
         );
 
-        this.connectSettingSignal("status-bar-format", () =>
+        this.connectSettingSignal(SETTINGS.KEYS.STATUS_BAR_FORMAT, () =>
             this.updateTimeDisplay(),
         );
 
-        this.connectSettingSignal("use-geez-numerals", () =>
+        this.connectSettingSignal(SETTINGS.KEYS.USE_GEEZ_NUMERALS, () =>
             this.updateTimeDisplay(),
         );
     }
@@ -95,10 +95,7 @@ export class StatusBarIndicator extends ComponentBase {
         if (!this._indicator) return;
 
         // Create CalendarPopup component
-        this._calendarPopup = new CalendarPopup({
-            extension: this.extension,
-            settings: this.settings,
-        });
+        this._calendarPopup = new CalendarPopup(this.extension);
 
         const popupMenu = this._indicator.menu as PopupMenu.PopupMenu;
         popupMenu.addMenuItem(this._calendarPopup.getItem());
@@ -120,9 +117,9 @@ export class StatusBarIndicator extends ComponentBase {
 
         // Get current position from settings
         this.position = this.extension.getSetting(
-            "status-bar-position",
-            "left",
-        ) as PanelPosition;
+            SETTINGS.KEYS.STATUS_BAR_POSITION,
+            SETTINGS.DEFAULTS.POSITION,
+        );
 
         // Remove from current position first
         this.removeFromAllPanelPositions();
@@ -134,8 +131,6 @@ export class StatusBarIndicator extends ComponentBase {
         } as const;
 
         const method = methodMap[this.position];
-
-        logger(`Inserting at position: ${this.position} and method: ${method}`);
 
         if (method) {
             (Main.panel as unknown as MainPanel)[
@@ -155,12 +150,12 @@ export class StatusBarIndicator extends ComponentBase {
 
         // Get current settings
         this.format = this.extension.getSetting(
-            "status-bar-format",
-            "full",
-        ) as TextFormat;
+            SETTINGS.KEYS.STATUS_BAR_FORMAT,
+            SETTINGS.DEFAULTS.FORMAT,
+        );
         this.useGeezNumerals = this.extension.getSetting(
-            "use-geez-numerals",
-            false,
+            SETTINGS.KEYS.USE_GEEZ_NUMERALS,
+            SETTINGS.DEFAULTS.GEEZ_NUMERALS,
         );
 
         const formattedTime = this.getCurrentDateAndTime();

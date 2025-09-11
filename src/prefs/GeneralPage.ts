@@ -2,6 +2,7 @@ import Adw from "gi://Adw";
 import Gio from "gi://Gio";
 import GObject from "gi://GObject";
 import type { GeneralPageChildren } from "../types/index.js";
+import { SETTINGS } from "../types/index.js";
 import { getTemplate } from "../utils/getTemplate.js";
 import { logger } from "../utils/logger.js";
 
@@ -21,71 +22,59 @@ export const GeneralPage = GObject.registerClass(
             logger("This is from prefs");
             const children = this as unknown as GeneralPageChildren;
 
-            // Status bar position binding
-            const _positionMapping = { left: 0, center: 1, right: 2 };
-            const reversePositionMapping = ["left", "center", "right"];
-
-            settings.bind(
-                "status-bar-position",
-                children._statusBarPosition,
-                "selected",
-                Gio.SettingsBindFlags.DEFAULT,
-            );
-            children._statusBarPosition.connect("notify::selected", () => {
-                const selectedIndex = children._statusBarPosition.selected;
-                const value = reversePositionMapping[selectedIndex] || "left";
-                settings.set_string("status-bar-position", value);
-            });
-
-            // Status bar format binding
-            const _formatMapping = {
-                full: 0,
-                compact: 1,
-                medium: 2,
-                "time-only": 3,
-                "date-only": 4,
+            // Helper function to bind combo box with string setting
+            const bindComboBox = <T extends readonly string[]>(
+                settingKey: string,
+                comboBox: GObject.Object,
+                options: T,
+                defaultValue: T[number],
+            ) => {
+                settings.bind(
+                    settingKey,
+                    comboBox,
+                    "selected",
+                    Gio.SettingsBindFlags.DEFAULT,
+                );
+                comboBox.connect("notify::selected", () => {
+                    const selectedIndex = (comboBox as any).selected;
+                    const value = options[selectedIndex] || defaultValue;
+                    settings.set_string(settingKey, value);
+                });
             };
-            const reverseFormatMapping = [
-                "full",
-                "compact",
-                "medium",
-                "time-only",
-                "date-only",
-            ];
 
-            settings.bind(
-                "status-bar-format",
+            // Bind all combo boxes
+            bindComboBox(
+                SETTINGS.KEYS.STATUS_BAR_POSITION,
+                children._statusBarPosition,
+                SETTINGS.OPTIONS.POSITION,
+                SETTINGS.DEFAULTS.POSITION,
+            );
+            bindComboBox(
+                SETTINGS.KEYS.STATUS_BAR_FORMAT,
                 children._statusBarFormat,
-                "selected",
-                Gio.SettingsBindFlags.DEFAULT,
+                SETTINGS.OPTIONS.FORMAT,
+                SETTINGS.DEFAULTS.FORMAT,
             );
-            children._statusBarFormat.connect("notify::selected", () => {
-                const selectedIndex = children._statusBarFormat.selected;
-                const value = reverseFormatMapping[selectedIndex] || "full";
-                settings.set_string("status-bar-format", value);
-            });
-
-            // Calendar language binding
-            const _languageMapping = { amharic: 0, english: 1 };
-            const reverseLanguageMapping = ["amharic", "english"];
-
-            settings.bind(
-                "calendar-language",
+            bindComboBox(
+                SETTINGS.KEYS.CALENDAR_LANGUAGE,
                 children._calendarLanguage,
-                "selected",
-                Gio.SettingsBindFlags.DEFAULT,
+                SETTINGS.OPTIONS.LANGUAGE,
+                SETTINGS.DEFAULTS.LANGUAGE,
             );
+
+            // Special handling for calendar language to update Geez numerals switch
             children._calendarLanguage.connect("notify::selected", () => {
                 const selectedIndex = children._calendarLanguage.selected;
                 const value =
-                    reverseLanguageMapping[selectedIndex] || "amharic";
-                settings.set_string("calendar-language", value);
+                    SETTINGS.OPTIONS.LANGUAGE[selectedIndex] ||
+                    SETTINGS.DEFAULTS.LANGUAGE;
+                settings.set_string(SETTINGS.KEYS.CALENDAR_LANGUAGE, value);
                 this._updateGeezNumeralsSwitch(settings, children);
             });
 
             // Geez numerals setting
             settings.bind(
-                "use-geez-numerals",
+                SETTINGS.KEYS.USE_GEEZ_NUMERALS,
                 children._useGeezNumerals,
                 "active",
                 Gio.SettingsBindFlags.DEFAULT,
@@ -100,36 +89,42 @@ export const GeneralPage = GObject.registerClass(
             settings: Gio.Settings,
             children: GeneralPageChildren,
         ) {
-            // Status bar position
-            const positionValue = settings.get_string("status-bar-position");
-            const positionIndex =
-                { left: 0, center: 1, right: 2 }[positionValue] || 0;
-            children._statusBarPosition.selected = positionIndex;
+            // Helper function to set combo box selection from string value
+            const setComboBoxSelection = <T extends readonly string[]>(
+                settingKey: string,
+                comboBox: GObject.Object,
+                options: T,
+            ) => {
+                const value = settings.get_string(settingKey);
+                const index = options.indexOf(value as T[number]);
+                (comboBox as any).selected = index >= 0 ? index : 0;
+            };
 
-            // Status bar format
-            const formatValue = settings.get_string("status-bar-format");
-            const formatIndex =
-                {
-                    full: 0,
-                    compact: 1,
-                    medium: 2,
-                    "time-only": 3,
-                    "date-only": 4,
-                }[formatValue] || 0;
-            children._statusBarFormat.selected = formatIndex;
-
-            // Calendar language
-            const languageValue = settings.get_string("calendar-language");
-            const languageIndex =
-                { amharic: 0, english: 1 }[languageValue] || 0;
-            children._calendarLanguage.selected = languageIndex;
+            // Update all combo boxes with current settings
+            setComboBoxSelection(
+                SETTINGS.KEYS.STATUS_BAR_POSITION,
+                children._statusBarPosition,
+                SETTINGS.OPTIONS.POSITION,
+            );
+            setComboBoxSelection(
+                SETTINGS.KEYS.STATUS_BAR_FORMAT,
+                children._statusBarFormat,
+                SETTINGS.OPTIONS.FORMAT,
+            );
+            setComboBoxSelection(
+                SETTINGS.KEYS.CALENDAR_LANGUAGE,
+                children._calendarLanguage,
+                SETTINGS.OPTIONS.LANGUAGE,
+            );
         }
 
         private _updateGeezNumeralsSwitch(
             settings: Gio.Settings,
             children: GeneralPageChildren,
         ) {
-            const languageValue = settings.get_string("calendar-language");
+            const languageValue = settings.get_string(
+                SETTINGS.KEYS.CALENDAR_LANGUAGE,
+            );
             const isEnglish = languageValue === "english";
 
             // Disable Geez numerals switch when English is selected

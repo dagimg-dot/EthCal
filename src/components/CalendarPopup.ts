@@ -1,15 +1,15 @@
 import Clutter from "gi://Clutter";
-import type Gio from "gi://Gio";
-import type GObject from "gi://GObject";
 import Pango from "gi://Pango";
 import St from "gi://St";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "kenat";
 import { createDayInfoService } from "../services/dayInfoService.js";
+import type { DayCell } from "../services/monthGrid.js";
 import { MonthGridService } from "../services/monthGrid.js";
 import { ComponentBase } from "../stignite/ComponentBase.js";
 import type { ExtensionBase } from "../stignite/ExtensionBase.js";
-import type { CalendarPopupProps, Language } from "../types/index.js";
+import type { LanguageOption } from "../types/index.js";
+import { SETTINGS } from "../types/index.js";
 import { logger } from "../utils/logger.js";
 
 export class CalendarPopup extends ComponentBase {
@@ -27,55 +27,41 @@ export class CalendarPopup extends ComponentBase {
     private settingsBtn: St.Button | undefined;
     private weekdayTitle: St.Label | undefined;
     private fullDateTitle: St.Label | undefined;
+    private extension: ExtensionBase;
 
+    // services
     private svc: MonthGridService | undefined;
     private dayInfoService: ReturnType<typeof createDayInfoService> | undefined;
 
-    // Simple state - no reactive framework needed
-    private language: Language;
-    private selectedDate: { day: number; month: number; year: number } | null =
-        null;
+    // settings
+    private language: LanguageOption;
+    private selectedDate: DayCell["ethiopianNumeric"] | null = null;
     private useGeezNumerals: boolean;
-    private props: CalendarPopupProps;
 
-    constructor(props: CalendarPopupProps) {
-        super(props.settings);
+    constructor(extension: ExtensionBase) {
+        super(extension.getSettings());
 
-        this.props = props;
-        const settings = props.settings as Gio.Settings;
+        this.extension = extension;
 
         // Initialize state from settings
-        this.language =
-            (settings.get_string("calendar-language") as Language) || "amharic";
-        this.useGeezNumerals = settings.get_boolean("use-geez-numerals");
+        this.language = this.extension.getSetting(
+            SETTINGS.KEYS.CALENDAR_LANGUAGE,
+            SETTINGS.DEFAULTS.LANGUAGE,
+        );
+        this.useGeezNumerals = this.extension.getSetting(
+            SETTINGS.KEYS.USE_GEEZ_NUMERALS,
+            SETTINGS.DEFAULTS.GEEZ_NUMERALS,
+        );
 
         this.initialize();
     }
 
     private setupSettingsObservers(): void {
-        const settings = this.props.settings as Gio.Settings;
-
-        // Observe language changes
-        this.connectSignal(
-            settings as unknown as GObject.Object,
-            "changed::calendar-language",
-            () => {
-                this.language =
-                    (settings.get_string("calendar-language") as Language) ||
-                    "amharic";
-                this.updateLanguage();
-            },
+        this.connectSettingSignal(SETTINGS.KEYS.CALENDAR_LANGUAGE, () =>
+            this.updateLanguage(),
         );
-
-        // Observe Geez numerals changes
-        this.connectSignal(
-            settings as unknown as GObject.Object,
-            "changed::use-geez-numerals",
-            () => {
-                this.useGeezNumerals =
-                    settings.get_boolean("use-geez-numerals");
-                this.updateGeezNumerals();
-            },
+        this.connectSettingSignal(SETTINGS.KEYS.USE_GEEZ_NUMERALS, () =>
+            this.updateGeezNumerals(),
         );
     }
 
@@ -148,7 +134,7 @@ export class CalendarPopup extends ComponentBase {
         // Connect settings button to open preferences
         this.settingsBtn.connect("clicked", () => {
             logger("Opening EthCal settings");
-            (this.props.extension as ExtensionBase).openPreferences();
+            this.extension.openPreferences();
         });
 
         topRow.add_child(this.weekdayTitle);

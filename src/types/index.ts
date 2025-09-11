@@ -1,61 +1,50 @@
 import type Adw from "gi://Adw";
-import type Gio from "gi://Gio";
 import type Gtk from "gi://Gtk";
-import type { ExtensionBase } from "../stignite/ExtensionBase.js";
 
-export type PanelPosition = "left" | "center" | "right";
+export const SETTINGS = {
+    KEYS: {
+        STATUS_BAR_POSITION: "status-bar-position",
+        STATUS_BAR_FORMAT: "status-bar-format",
+        CALENDAR_LANGUAGE: "calendar-language",
+        USE_GEEZ_NUMERALS: "use-geez-numerals",
+    } as const,
 
-export type TextFormat =
-    | "full"
-    | "compact"
-    | "medium"
-    | "time-only"
-    | "date-only";
-export type Language = "amharic" | "english";
+    OPTIONS: {
+        POSITION: ["left", "center", "right"] as const,
+        FORMAT: [
+            "full",
+            "compact",
+            "medium",
+            "time-only",
+            "date-only",
+        ] as const,
+        LANGUAGE: ["amharic", "english"] as const,
+        GEEZ_NUMERALS: [false, true] as const,
+    } as const,
 
-// Component configuration interfaces (no longer using complex reactive state)
+    DEFAULTS: {
+        POSITION: "left",
+        FORMAT: "full",
+        LANGUAGE: "amharic",
+        GEEZ_NUMERALS: false as boolean,
+    } as const,
+} as const;
+
+export type PositionOption = (typeof SETTINGS.OPTIONS.POSITION)[number];
+export type FormatOption = (typeof SETTINGS.OPTIONS.FORMAT)[number];
+export type LanguageOption = (typeof SETTINGS.OPTIONS.LANGUAGE)[number];
+
 export interface StatusBarConfig {
-    position?: PanelPosition;
-    format?: TextFormat;
+    position?: PositionOption;
+    format?: FormatOption;
     showIcon?: boolean;
 }
 
 export interface CalendarConfig {
-    language?: Language;
+    language?: LanguageOption;
     showHolidays?: boolean;
     weekStartsOn?: number;
 }
-
-export interface CalendarPopupProps {
-    extension: ExtensionBase; // GNOME Extension object
-    settings: Gio.Settings; // GNOME Settings object
-}
-
-// Type guards for EthCal-specific types
-export const isPanelPosition = (value: unknown): value is PanelPosition => {
-    return (
-        typeof value === "string" &&
-        (value === "left" || value === "center" || value === "right")
-    );
-};
-
-export const isTextFormat = (value: unknown): value is TextFormat => {
-    return (
-        typeof value === "string" &&
-        (value === "full" ||
-            value === "compact" ||
-            value === "medium" ||
-            value === "time-only" ||
-            value === "date-only")
-    );
-};
-
-export const isLanguage = (value: unknown): value is Language => {
-    return (
-        typeof value === "string" &&
-        (value === "amharic" || value === "english")
-    );
-};
 
 export interface GeneralPageChildren {
     _statusBarPosition: Adw.ComboRow;
@@ -74,8 +63,3 @@ export interface AboutPageChildren {
     _legalRow: Adw.ExpanderRow;
     _extensionLicense: Gtk.TextView;
 }
-
-// Utility types
-export type DeepPartial<T> = {
-    [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
-};
