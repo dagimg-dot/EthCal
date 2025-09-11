@@ -37,11 +37,10 @@
             </choices>
         </key>
 
-        <!-- Legacy setting (keeping for compatibility) -->
-        <key name="say-hello" type="b">
+        <key name="use-geez-numerals" type="b">
             <default>true</default>
-            <summary>Say hello</summary>
-            <description>Whether to say hello</description>
+            <summary>Use Geez numerals</summary>
+            <description>Display calendar numbers using traditional Ethiopian numerals</description>
         </key>
     </schema>
 </schemalist>

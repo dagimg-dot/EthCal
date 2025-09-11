@@ -67,17 +67,11 @@
             </property>
           </object>
         </child>
-      </object>
-    </child>
 
-    <!-- Legacy Settings Group -->
-    <child>
-      <object class="AdwPreferencesGroup">
-        <property name="title" translatable="true">Other</property>
         <child>
-          <object class="AdwSwitchRow" id="sayHello">
-            <property name="title" translatable="true">Say hello</property>
-            <property name="subtitle" translatable="true">Whether to say hello</property>
+          <object class="AdwSwitchRow" id="useGeezNumerals">
+            <property name="title" translatable="true">Use Geez Numerals</property>
+            <property name="subtitle" translatable="true">Display calendar numbers using traditional Ethiopian numerals</property>
           </object>
         </child>
       </object>

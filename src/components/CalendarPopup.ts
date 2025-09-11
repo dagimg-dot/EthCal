@@ -39,10 +39,12 @@ export class CalendarPopup extends Component<
     private stateManager: StateManager;
 
     constructor(props: CalendarPopupProps) {
+        const settings = props.settings as Gio.Settings;
         const initialState: CalendarPopupState = {
             language: "amharic",
             currentMonth: "",
             selectedDate: null,
+            useGeezNumerals: settings.get_boolean("use-geez-numerals"),
         };
 
         super(initialState, props);
@@ -60,10 +62,22 @@ export class CalendarPopup extends Component<
             (settings.get_string("calendar-language") as Language) || "amharic",
         );
 
+        // Create reactive state for Geez numerals
+        const geezNumeralsState = this.stateManager.createState(
+            "useGeezNumerals",
+            settings.get_boolean("use-geez-numerals"),
+        );
+
         // Subscribe to language changes
         this.subscribeToState(languageState, (language) => {
             this.state.language = language;
             this.updateLanguage();
+        });
+
+        // Subscribe to Geez numerals changes
+        this.subscribeToState(geezNumeralsState, (useGeezNumerals) => {
+            this.state.useGeezNumerals = useGeezNumerals;
+            this.updateGeezNumerals();
         });
 
         // Connect to settings changes
@@ -72,6 +86,13 @@ export class CalendarPopup extends Component<
                 (settings.get_string("calendar-language") as Language) ||
                 "amharic";
             languageState.set(newLanguage);
+        });
+
+        // Connect to Geez numerals setting changes
+        this.connectSignal(settings, "changed::use-geez-numerals", () => {
+            const newUseGeezNumerals =
+                settings.get_boolean("use-geez-numerals");
+            geezNumeralsState.set(newUseGeezNumerals);
         });
     }
 
@@ -242,7 +263,7 @@ export class CalendarPopup extends Component<
         this.svc = new MonthGridService({
             weekStart: 1,
             weekdayLang: this.state.language,
-            useGeez: true,
+            useGeez: this.state.useGeezNumerals,
         });
         this.dayInfoService = createDayInfoService(this.state.language);
     }
@@ -261,13 +282,47 @@ export class CalendarPopup extends Component<
         this.svc = new MonthGridService({
             weekStart: 1,
             weekdayLang: this.state.language,
-            useGeez: true,
+            useGeez: this.state.useGeezNumerals,
         });
         this.dayInfoService = createDayInfoService(this.state.language);
 
         // Re-render with new language
         this.render();
         this.updateTodayEvents();
+    }
+
+    private updateGeezNumerals(): void {
+        if (!this.svc) return;
+
+        // Update service with new Geez numerals setting
+        this.svc = new MonthGridService({
+            weekStart: 1,
+            weekdayLang: this.state.language,
+            useGeez: this.state.useGeezNumerals,
+        });
+
+        // Re-render with new numerals
+        this.render();
+    }
+
+    private formatDate(day: number, month: number, year: number): string {
+        if (this.state.useGeezNumerals) {
+            // Convert to Geez numerals using Kenat library
+            const kenat = new Kenat();
+            const ethiopianDate = kenat.getEthiopian();
+            ethiopianDate.day = day;
+            ethiopianDate.month = month;
+            ethiopianDate.year = year;
+
+            // Use Kenat's formatting with Geez numerals
+            return kenat.format({
+                lang: this.state.language,
+                useGeez: true,
+            });
+        } else {
+            // Use Arabic numerals
+            return `${day}/${month}/${year}`;
+        }
     }
 
     private clearGrid(): void {
@@ -426,7 +481,11 @@ export class CalendarPopup extends Component<
                         this.state.selectedDate,
                     );
 
-                    this.eventsTitle.text = `${e.day}/${e.month}/${e.year}`;
+                    this.eventsTitle.text = this.formatDate(
+                        e.day as number,
+                        e.month as number,
+                        e.year as number,
+                    );
 
                     this.eventsList.get_children().forEach((c) => c.destroy());
 

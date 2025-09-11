@@ -27,7 +27,7 @@ interface GeneralPageChildren {
     _statusBarPosition: Adw.ComboRow;
     _statusBarFormat: Adw.ComboRow;
     _calendarLanguage: Adw.ComboRow;
-    _sayHello: Adw.SwitchRow;
+    _useGeezNumerals: Adw.SwitchRow;
 }
 
 const GeneralPage = GObject.registerClass(
@@ -38,7 +38,7 @@ const GeneralPage = GObject.registerClass(
             "statusBarPosition",
             "statusBarFormat",
             "calendarLanguage",
-            "sayHello",
+            "useGeezNumerals",
         ],
     },
     class GeneralPage extends Adw.PreferencesPage {
@@ -105,18 +105,20 @@ const GeneralPage = GObject.registerClass(
                 const value =
                     reverseLanguageMapping[selectedIndex] || "amharic";
                 settings.set_string("calendar-language", value);
+                this._updateGeezNumeralsSwitch(settings, children);
             });
 
-            // Legacy setting
+            // Geez numerals setting
             settings.bind(
-                "say-hello",
-                children._sayHello,
+                "use-geez-numerals",
+                children._useGeezNumerals,
                 "active",
                 Gio.SettingsBindFlags.DEFAULT,
             );
 
-            // Initialize combo boxes with current values
+            // Initialize combo boxes and switches with current values
             this._updateComboBoxes(settings, children);
+            this._updateGeezNumeralsSwitch(settings, children);
         }
 
         private _updateComboBoxes(
@@ -146,6 +148,22 @@ const GeneralPage = GObject.registerClass(
             const languageIndex =
                 { amharic: 0, english: 1 }[languageValue] || 0;
             children._calendarLanguage.selected = languageIndex;
+        }
+
+        private _updateGeezNumeralsSwitch(
+            settings: Gio.Settings,
+            children: GeneralPageChildren,
+        ) {
+            const languageValue = settings.get_string("calendar-language");
+            const isEnglish = languageValue === "english";
+
+            // Disable Geez numerals switch when English is selected
+            children._useGeezNumerals.sensitive = !isEnglish;
+
+            // If switching to English, also turn off Geez numerals
+            if (isEnglish && children._useGeezNumerals.active) {
+                children._useGeezNumerals.active = false;
+            }
         }
     },
 );

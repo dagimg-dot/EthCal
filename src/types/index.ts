@@ -16,6 +16,7 @@ export interface StatusBarState {
     position: PanelPosition;
     format: TextFormat;
     text: string;
+    useGeezNumerals: boolean;
 }
 
 export interface CalendarPopupState {
@@ -26,6 +27,7 @@ export interface CalendarPopupState {
         month: number;
         day: number;
     } | null;
+    useGeezNumerals: boolean;
 }
 
 // Component props interfaces

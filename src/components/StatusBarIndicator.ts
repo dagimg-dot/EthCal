@@ -44,6 +44,7 @@ export class StatusBarIndicator extends Component<StatusBarState> {
                 (settings.get_string("status-bar-format") as TextFormat) ||
                 "full",
             text: "",
+            useGeezNumerals: settings.get_boolean("use-geez-numerals") || false,
         };
 
         super(initialState);
@@ -66,6 +67,10 @@ export class StatusBarIndicator extends Component<StatusBarState> {
             "format",
             this.settings.get_string("status-bar-format") as TextFormat,
         );
+        const geezNumeralsState = this.stateManager.createState(
+            "useGeezNumerals",
+            this.settings.get_boolean("use-geez-numerals"),
+        );
 
         // Subscribe to position changes
         this.subscribeToState(
@@ -87,6 +92,16 @@ export class StatusBarIndicator extends Component<StatusBarState> {
             "format-subscription",
         );
 
+        // Subscribe to Geez numerals changes
+        this.subscribeToState(
+            geezNumeralsState,
+            (useGeezNumerals) => {
+                this.state.useGeezNumerals = useGeezNumerals;
+                this.updateTimeDisplay();
+            },
+            "geez-numerals-subscription",
+        );
+
         // Update settings when state changes
         this.settings.connect("changed::status-bar-position", () => {
             positionState.set(
@@ -102,16 +117,22 @@ export class StatusBarIndicator extends Component<StatusBarState> {
             );
         });
 
+        this.settings.connect("changed::use-geez-numerals", () => {
+            geezNumeralsState.set(
+                this.settings.get_boolean("use-geez-numerals"),
+            );
+        });
+
         // No need to handle calendar language here - CalendarPopup handles it internally
     }
 
     onMount(): void {
-        this.createIndicator();
+        this.createUI();
         this.updateTimeDisplay(); // Update immediately
         this.startTimeUpdate();
     }
 
-    private createIndicator() {
+    private createUI() {
         this.#indicator = new PanelMenu.Button(0, "Ethiopian Calendar", false);
 
         this.#label = new St.Label({
@@ -205,6 +226,7 @@ export class StatusBarIndicator extends Component<StatusBarState> {
     private getCurrentDateAndTime(): string {
         const kenat = new Kenat();
         const format = this.state.format;
+        const useGeezNumerals = this.state.useGeezNumerals || false;
 
         let formattedString: string;
 
@@ -216,12 +238,12 @@ export class StatusBarIndicator extends Component<StatusBarState> {
 
             case "compact":
                 // ጥር ፪ ፲፪:፲፬ (Month Day HH:MM)
-                formattedString = `${kenat.format({ lang: "amharic", useGeez: true })} ${kenat.time.hour}:${String(kenat.time.minute).padStart(2, "0")}`;
+                formattedString = `${kenat.format({ lang: "amharic", useGeez: useGeezNumerals })} ${kenat.time.hour}:${String(kenat.time.minute).padStart(2, "0")}`;
                 break;
 
             case "medium":
                 // እሑድ ጥር ፪ ፲፪:፲፬ (Weekday Month Day HH:MM)
-                formattedString = `${kenat.formatWithWeekday("amharic", true)} ${kenat.time.hour}:${String(kenat.time.minute).padStart(2, "0")}`;
+                formattedString = `${kenat.formatWithWeekday("amharic", useGeezNumerals)} ${kenat.time.hour}:${String(kenat.time.minute).padStart(2, "0")}`;
                 break;
 
             case "time-only":
@@ -233,7 +255,7 @@ export class StatusBarIndicator extends Component<StatusBarState> {
                 // እሑድ ፪ ፳፻፺፯ (Weekday Day Year)
                 formattedString = kenat.format({
                     lang: "amharic",
-                    useGeez: true,
+                    useGeez: useGeezNumerals,
                 });
                 break;
 
