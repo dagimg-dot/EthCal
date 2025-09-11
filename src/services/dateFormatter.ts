@@ -67,7 +67,10 @@ export class DateFormatterService {
         const monthName = this.getMonthName(ethiopian.month);
 
         // Get time period
-        const timePeriod = this.getTimePeriod(kenat.time.hour);
+        const timePeriod = this.getTimePeriod(
+            kenat.time.hour,
+            kenat.time.period,
+        );
 
         return {
             dnum: this.options.useGeezNumerals ? toGeez(weekday) : weekday,
@@ -85,16 +88,16 @@ export class DateFormatterService {
             tp: timePeriod,
             hh: this.options.useGeezNumerals
                 ? toGeez(kenat.time.hour)
-                : kenat.time.hour,
+                : kenat.time.hour.toString().padStart(2, "0"),
             h: this.options.useGeezNumerals
                 ? toGeez(kenat.time.hour)
-                : kenat.time.hour,
+                : kenat.time.hour.toString().padStart(2, "0"),
             mm: this.options.useGeezNumerals
                 ? toGeez(kenat.time.minute)
-                : kenat.time.minute,
+                : kenat.time.minute.toString().padStart(2, "0"),
             m: this.options.useGeezNumerals
                 ? toGeez(kenat.time.minute)
-                : kenat.time.minute,
+                : kenat.time.minute.toString().padStart(2, "0"),
         };
     }
 
@@ -171,17 +174,17 @@ export class DateFormatterService {
     /**
      * Get time period (day/night)
      */
-    private getTimePeriod(hour: number): string {
+    private getTimePeriod(hour: number, period: string): string {
         if (this.options.language === "amharic") {
-            if (hour >= 6 && hour < 12) return "ጠዋት";
-            if (hour >= 12 && hour < 18) return "ከሰዓት";
-            if (hour >= 18 && hour < 24) return "ማታ";
+            if (hour >= 1 && hour < 6 && period === "day") return "ጠዋት";
+            if (hour >= 6 && hour < 12 && period === "day") return "ከሰዓት";
+            if (hour >= 1 && hour < 6 && period === "night") return "ማታ";
             return "ሌሊት";
         } else {
-            if (hour >= 6 && hour < 12) return "morning";
-            if (hour >= 12 && hour < 18) return "afternoon";
-            if (hour >= 18 && hour < 24) return "evening";
-            return "night";
+            if (hour >= 1 && hour < 6 && period === "day") return "Morning";
+            if (hour >= 6 && hour < 12 && period === "day") return "Afternoon";
+            if (hour >= 1 && hour < 6 && period === "night") return "Evening";
+            return "Night";
         }
     }
 

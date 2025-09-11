@@ -15,7 +15,6 @@ export const SETTINGS = {
         FORMAT: [
             "full",
             "compact",
-            "medium",
             "time-only",
             "date-only",
             "custom",
@@ -53,6 +52,7 @@ export interface GeneralPageChildren {
     _statusBarPosition: Adw.ComboRow;
     _statusBarFormat: Adw.ComboRow;
     _statusBarCustomFormat: Adw.EntryRow;
+    _customFormatHelpButton: Gtk.Button;
     _calendarLanguage: Adw.ComboRow;
     _useGeezNumerals: Adw.SwitchRow;
 }

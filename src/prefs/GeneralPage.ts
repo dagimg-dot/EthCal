@@ -1,6 +1,7 @@
 import Adw from "gi://Adw";
 import Gio from "gi://Gio";
 import GObject from "gi://GObject";
+import Gtk from "gi://Gtk";
 import type { GeneralPageChildren } from "../types/index.js";
 import { SETTINGS } from "../types/index.js";
 import { getTemplate } from "../utils/getTemplate.js";
@@ -14,6 +15,7 @@ export const GeneralPage = GObject.registerClass(
             "statusBarPosition",
             "statusBarFormat",
             "statusBarCustomFormat",
+            "customFormatHelpButton",
             "calendarLanguage",
             "useGeezNumerals",
         ],
@@ -119,6 +121,15 @@ export const GeneralPage = GObject.registerClass(
                 logger("Warning: Custom format entry is null");
             }
 
+            // Help button for custom format tokens
+            if (children._customFormatHelpButton) {
+                children._customFormatHelpButton.connect("clicked", () => {
+                    this._showTokenHelpDialog();
+                });
+            } else {
+                logger("Warning: Custom format help button is null");
+            }
+
             // Initialize combo boxes and switches with current values
             this._updateComboBoxes(settings, children);
             this._updateGeezNumeralsSwitch(settings, children);
@@ -206,6 +217,90 @@ export const GeneralPage = GObject.registerClass(
             // Show custom format entry only when "custom" format is selected
             const isCustomFormat = formatValue === "custom";
             children._statusBarCustomFormat.visible = isCustomFormat;
+        }
+
+        private _showTokenHelpDialog() {
+            // Create dialog
+            const dialog = new Adw.MessageDialog({
+                heading: "Available Format Tokens",
+                body: "Use these tokens in your custom format string:",
+                modal: true,
+                transient_for: this.get_root() as Gtk.Window,
+            });
+
+            // Create content box for the token list
+            const box = new Gtk.Box({
+                orientation: Gtk.Orientation.VERTICAL,
+                spacing: 12,
+                margin_start: 12,
+                margin_end: 12,
+                margin_top: 12,
+                margin_bottom: 12,
+            });
+
+            // Token explanations
+            const tokens = [
+                {
+                    token: "dday",
+                    description: "Weekday name (e.g., Monday, ሰኞ)",
+                },
+                { token: "dd", description: "Day of month (1-30)" },
+                {
+                    token: "dnum",
+                    description: "Weekday number (0=Sunday, 1=Monday, etc.)",
+                },
+                {
+                    token: "mnam",
+                    description: "Month name (e.g., Meskerem, መስከረም)",
+                },
+                { token: "mnum", description: "Month number (1-13)" },
+                { token: "year", description: "Year number" },
+                {
+                    token: "hh or h",
+                    description: "Hour in 12-hour format (1-12)",
+                },
+                { token: "mm or m", description: "Minute (00-59)" },
+                {
+                    token: "tp",
+                    description:
+                        "Time period (Morning/Afternoon/Evening/Night)",
+                },
+            ];
+
+            // Create labels for each token
+            for (const { token, description } of tokens) {
+                const tokenLabel = new Gtk.Label({
+                    label: `<b>${token}</b> - ${description}`,
+                    use_markup: true,
+                    xalign: 0,
+                    margin_start: 12,
+                    wrap: true,
+                });
+
+                box.append(tokenLabel);
+            }
+
+            // Add example
+            const exampleLabel = new Gtk.Label({
+                label: "\n<b>Example:</b> dday, mnam dd, year hh:mm tp",
+                use_markup: true,
+                xalign: 0,
+                margin_start: 12,
+                margin_top: 12,
+            });
+
+            box.append(exampleLabel);
+
+            // Set dialog content
+            dialog.set_extra_child(box);
+
+            // Add close button
+            dialog.add_response("close", "Close");
+            dialog.set_default_response("close");
+            dialog.set_close_response("close");
+
+            // Show dialog
+            dialog.present();
         }
     },
 );

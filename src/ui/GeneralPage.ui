@@ -34,11 +34,10 @@
             <property name="model">
               <object class="GtkStringList">
                 <items>
-                  <item translatable="true">Full (Weekday Day Year HH:MM TimeDesc)</item>
-                  <item translatable="true">Compact (Month Day HH:MM)</item>
-                  <item translatable="true">Medium (Weekday Month Day HH:MM)</item>
-                  <item translatable="true">Time Only (HH:MM TimeDesc)</item>
-                  <item translatable="true">Date Only (Weekday Day Year)</item>
+                  <item translatable="true">Full</item>
+                  <item translatable="true">Compact</item>
+                  <item translatable="true">Time Only</item>
+                  <item translatable="true">Date Only</item>
                   <item translatable="true">Custom</item>
                 </items>
               </object>
@@ -51,6 +50,16 @@
             <property name="title" translatable="true">Custom Format</property>
             <property name="text">dday, mnam dd, year hh:mm</property>
             <property name="show-apply-button">true</property>
+            <child>
+              <object class="GtkButton" id="customFormatHelpButton">
+                <property name="icon-name">help-contents-symbolic</property>
+                <property name="tooltip-text" translatable="true">Show available tokens</property>
+                <property name="valign">center</property>
+                <style>
+                  <class name="flat"/>
+                </style>
+              </object>
+            </child>
           </object>
         </child>
       </object>

@@ -222,11 +222,10 @@ export class StatusBarIndicator extends ComponentBase {
 
         // Map predefined formats to custom format strings
         const formatMap: Record<Exclude<FormatOption, "custom">, string> = {
-            full: "dday dd mnam year hh:mm tp",
+            full: "dday mnam dd year hh:mm tp",
             compact: "mnam dd hh:mm",
-            medium: "dday mnam dd hh:mm",
             "time-only": "hh:mm tp",
-            "date-only": "dday dd mnam year",
+            "date-only": "dday mnam dd year",
         };
 
         const formatString =
