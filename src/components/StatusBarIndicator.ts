@@ -1,20 +1,15 @@
 import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
+import type GObject from "gi://GObject";
 import St from "gi://St";
-import type { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "kenat";
-import { Component, StateManager } from "stignite";
-import type {
-    PanelPosition,
-    StatusBarState,
-    TextFormat,
-} from "../types/index.js";
+import { ComponentBase } from "../stignite/ComponentBase.js";
+import type { ExtensionBase } from "../stignite/ExtensionBase.js";
+import type { PanelPosition, TextFormat } from "../types/index.js";
 import { CalendarPopup } from "./CalendarPopup.js";
-
-const Mainloop = imports.mainloop;
 
 interface MainPanel {
     _leftBox?: St.BoxLayout;
@@ -23,110 +18,78 @@ interface MainPanel {
     menuManager?: PopupMenu.PopupMenuManager;
 }
 
-export class StatusBarIndicator extends Component<StatusBarState> {
+export class StatusBarIndicator extends ComponentBase {
     #indicator: PanelMenu.Button | undefined;
     #label: St.Label | undefined;
-    #timeoutId: number | undefined;
     #calendarPopup: CalendarPopup | undefined;
     private readonly timeout = 1.0;
-    private extension: Extension;
+    private extension: ExtensionBase;
     private settings: Gio.Settings;
-    private stateManager: StateManager;
 
-    constructor(extension: Extension) {
-        const settings = extension.getSettings();
+    // Simple state - no reactive framework needed
+    private position: PanelPosition;
+    private format: TextFormat;
+    private useGeezNumerals: boolean;
 
-        const initialState: StatusBarState = {
-            position:
-                (settings.get_string("status-bar-position") as PanelPosition) ||
-                "left",
-            format:
-                (settings.get_string("status-bar-format") as TextFormat) ||
-                "full",
-            text: "",
-            useGeezNumerals: settings.get_boolean("use-geez-numerals") || false,
-        };
-
-        super(initialState);
+    constructor(extension: ExtensionBase) {
+        super();
 
         this.extension = extension;
-        this.settings = settings;
-        this.stateManager = new StateManager();
+        this.settings = extension.getSettings();
 
-        // Initialize the component to set up state subscriptions and mount
+        // Initialize state from settings
+        this.position =
+            (this.settings.get_string(
+                "status-bar-position",
+            ) as PanelPosition) || "left";
+        this.format =
+            (this.settings.get_string("status-bar-format") as TextFormat) ||
+            "full";
+        this.useGeezNumerals =
+            this.settings.get_boolean("use-geez-numerals") || false;
+
         this.initialize();
     }
 
-    protected setupStateSubscriptions(): void {
-        // Create reactive state for settings
-        const positionState = this.stateManager.createState(
-            "position",
-            this.settings.get_string("status-bar-position") as PanelPosition,
-        );
-        const formatState = this.stateManager.createState(
-            "format",
-            this.settings.get_string("status-bar-format") as TextFormat,
-        );
-        const geezNumeralsState = this.stateManager.createState(
-            "useGeezNumerals",
-            this.settings.get_boolean("use-geez-numerals"),
-        );
-
-        // Subscribe to position changes
-        this.subscribeToState(
-            positionState,
-            (position) => {
-                this.state.position = position;
+    private setupSettingsObservers(): void {
+        // Observe position changes
+        this.connectSignal(
+            this.settings as unknown as GObject.Object,
+            "changed::status-bar-position",
+            () => {
+                this.position = this.settings.get_string(
+                    "status-bar-position",
+                ) as PanelPosition;
                 this.updateIndicatorPosition();
             },
-            "position-subscription",
         );
 
-        // Subscribe to format changes
-        this.subscribeToState(
-            formatState,
-            (format) => {
-                this.state.format = format;
+        // Observe format changes
+        this.connectSignal(
+            this.settings as unknown as GObject.Object,
+            "changed::status-bar-format",
+            () => {
+                this.format = this.settings.get_string(
+                    "status-bar-format",
+                ) as TextFormat;
                 this.updateTimeDisplay();
             },
-            "format-subscription",
         );
 
-        // Subscribe to Geez numerals changes
-        this.subscribeToState(
-            geezNumeralsState,
-            (useGeezNumerals) => {
-                this.state.useGeezNumerals = useGeezNumerals;
+        // Observe Geez numerals changes
+        this.connectSignal(
+            this.settings as unknown as GObject.Object,
+            "changed::use-geez-numerals",
+            () => {
+                this.useGeezNumerals =
+                    this.settings.get_boolean("use-geez-numerals");
                 this.updateTimeDisplay();
             },
-            "geez-numerals-subscription",
         );
-
-        // Update settings when state changes
-        this.settings.connect("changed::status-bar-position", () => {
-            positionState.set(
-                this.settings.get_string(
-                    "status-bar-position",
-                ) as PanelPosition,
-            );
-        });
-
-        this.settings.connect("changed::status-bar-format", () => {
-            formatState.set(
-                this.settings.get_string("status-bar-format") as TextFormat,
-            );
-        });
-
-        this.settings.connect("changed::use-geez-numerals", () => {
-            geezNumeralsState.set(
-                this.settings.get_boolean("use-geez-numerals"),
-            );
-        });
-
-        // No need to handle calendar language here - CalendarPopup handles it internally
     }
 
-    onMount(): void {
+    private initialize(): void {
+        this.setupSettingsObservers();
         this.createUI();
         this.updateTimeDisplay(); // Update immediately
         this.startTimeUpdate();
@@ -175,9 +138,9 @@ export class StatusBarIndicator extends Component<StatusBarState> {
         // Remove from current position first
         this.removeFromAllPanelPositions();
 
-        // Add to new position based on component stiate using panel boxes
+        // Add to new position based on position using panel boxes
         const panel = Main.panel as unknown as MainPanel;
-        switch (this.state.position) {
+        switch (this.position) {
             case "center":
                 if (panel._centerBox) {
                     panel._centerBox.insert_child_at_index(
@@ -206,13 +169,9 @@ export class StatusBarIndicator extends Component<StatusBarState> {
     }
 
     private startTimeUpdate() {
-        this.addTimer(
-            "time-update",
-            () => {
-                this.updateTimeDisplay();
-            },
-            this.timeout * 1000,
-        );
+        this.addTimer(() => {
+            this.updateTimeDisplay();
+        }, this.timeout * 1000);
     }
 
     private updateTimeDisplay() {
@@ -220,13 +179,12 @@ export class StatusBarIndicator extends Component<StatusBarState> {
 
         const formattedTime = this.getCurrentDateAndTime();
         this.#label.text = formattedTime;
-        this.state.text = formattedTime;
     }
 
     private getCurrentDateAndTime(): string {
         const kenat = new Kenat();
-        const format = this.state.format;
-        const useGeezNumerals = this.state.useGeezNumerals || false;
+        const format = this.format;
+        const useGeezNumerals = this.useGeezNumerals || false;
 
         let formattedString: string;
 
@@ -293,16 +251,10 @@ export class StatusBarIndicator extends Component<StatusBarState> {
         );
     }
 
-    onDestroy(): void {
-        // Stop time updates
-        if (this.#timeoutId) {
-            Mainloop.source_remove(this.#timeoutId);
-            this.#timeoutId = undefined;
-        }
-
-        // Clean up calendar popup using Stignite's destroy method
+    destroy(): void {
+        // Clean up calendar popup
         if (this.#calendarPopup) {
-            this.#calendarPopup.onDestroy();
+            this.#calendarPopup.destroy();
             this.#calendarPopup = undefined;
         }
 
@@ -316,7 +268,7 @@ export class StatusBarIndicator extends Component<StatusBarState> {
         // Clean up references
         this.#label = undefined;
 
-        // Clean up state manager
-        this.stateManager.destroy();
+        // Call parent destroy to clean up all registered cleanups
+        super.destroy();
     }
 }

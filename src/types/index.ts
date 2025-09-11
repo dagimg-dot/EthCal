@@ -1,7 +1,7 @@
-// EthCal-specific types and interfaces
-import type { ComponentProps } from "stignite";
-
 // GNOME-specific types for EthCal
+
+import type Gio from "gi://Gio";
+import type { ExtensionBase } from "../stignite/ExtensionBase.js";
 export type PanelPosition = "left" | "center" | "right";
 export type TextFormat =
     | "full"
@@ -11,41 +11,22 @@ export type TextFormat =
     | "date-only";
 export type Language = "amharic" | "english";
 
-// Component state interfaces
-export interface StatusBarState {
-    position: PanelPosition;
-    format: TextFormat;
-    text: string;
-    useGeezNumerals: boolean;
-}
-
-export interface CalendarPopupState {
-    language: Language;
-    currentMonth: string;
-    selectedDate: {
-        year: number;
-        month: number;
-        day: number;
-    } | null;
-    useGeezNumerals: boolean;
-}
-
-// Component props interfaces
-export interface StatusBarProps extends ComponentProps {
+// Component configuration interfaces (no longer using complex reactive state)
+export interface StatusBarConfig {
     position?: PanelPosition;
     format?: TextFormat;
     showIcon?: boolean;
 }
 
-export interface CalendarProps extends ComponentProps {
+export interface CalendarConfig {
     language?: Language;
     showHolidays?: boolean;
     weekStartsOn?: number;
 }
 
 export interface CalendarPopupProps {
-    extension: unknown; // GNOME Extension object
-    settings: unknown; // GNOME Settings object
+    extension: ExtensionBase; // GNOME Extension object
+    settings: Gio.Settings; // GNOME Settings object
 }
 
 // Type guards for EthCal-specific types

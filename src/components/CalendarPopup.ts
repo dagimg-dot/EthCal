@@ -1,24 +1,18 @@
 import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
+import type GObject from "gi://GObject";
 import Pango from "gi://Pango";
 import St from "gi://St";
-import type { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "kenat";
-import { Component, StateManager } from "stignite";
 import { createDayInfoService } from "../services/dayInfoService.js";
 import { MonthGridService } from "../services/monthGrid.js";
-import type {
-    CalendarPopupProps,
-    CalendarPopupState,
-    Language,
-} from "../types/index.js";
+import { ComponentBase } from "../stignite/ComponentBase.js";
+import type { ExtensionBase } from "../stignite/ExtensionBase.js";
+import type { CalendarPopupProps, Language } from "../types/index.js";
 import { logger } from "../utils/logger.js";
 
-export class CalendarPopup extends Component<
-    CalendarPopupState,
-    CalendarPopupProps
-> {
+export class CalendarPopup extends ComponentBase {
     private item: PopupMenu.PopupBaseMenuItem | undefined;
     private outer: St.BoxLayout | undefined;
     private header: St.BoxLayout | undefined;
@@ -36,67 +30,57 @@ export class CalendarPopup extends Component<
 
     private svc: MonthGridService | undefined;
     private dayInfoService: ReturnType<typeof createDayInfoService> | undefined;
-    private stateManager: StateManager;
+
+    // Simple state - no reactive framework needed
+    private language: Language;
+    private selectedDate: { day: number; month: number; year: number } | null =
+        null;
+    private useGeezNumerals: boolean;
+    private props: CalendarPopupProps;
 
     constructor(props: CalendarPopupProps) {
+        super();
+
+        this.props = props;
         const settings = props.settings as Gio.Settings;
-        const initialState: CalendarPopupState = {
-            language: "amharic",
-            currentMonth: "",
-            selectedDate: null,
-            useGeezNumerals: settings.get_boolean("use-geez-numerals"),
-        };
 
-        super(initialState, props);
-        this.stateManager = new StateManager();
+        // Initialize state from settings
+        this.language =
+            (settings.get_string("calendar-language") as Language) || "amharic";
+        this.useGeezNumerals = settings.get_boolean("use-geez-numerals");
 
-        // Initialize the component to set up state subscriptions and mount
         this.initialize();
     }
 
-    protected setupStateSubscriptions(): void {
-        // Create reactive state for language
+    private setupSettingsObservers(): void {
         const settings = this.props.settings as Gio.Settings;
-        const languageState = this.stateManager.createState(
-            "language",
-            (settings.get_string("calendar-language") as Language) || "amharic",
+
+        // Observe language changes
+        this.connectSignal(
+            settings as unknown as GObject.Object,
+            "changed::calendar-language",
+            () => {
+                this.language =
+                    (settings.get_string("calendar-language") as Language) ||
+                    "amharic";
+                this.updateLanguage();
+            },
         );
 
-        // Create reactive state for Geez numerals
-        const geezNumeralsState = this.stateManager.createState(
-            "useGeezNumerals",
-            settings.get_boolean("use-geez-numerals"),
+        // Observe Geez numerals changes
+        this.connectSignal(
+            settings as unknown as GObject.Object,
+            "changed::use-geez-numerals",
+            () => {
+                this.useGeezNumerals =
+                    settings.get_boolean("use-geez-numerals");
+                this.updateGeezNumerals();
+            },
         );
-
-        // Subscribe to language changes
-        this.subscribeToState(languageState, (language) => {
-            this.state.language = language;
-            this.updateLanguage();
-        });
-
-        // Subscribe to Geez numerals changes
-        this.subscribeToState(geezNumeralsState, (useGeezNumerals) => {
-            this.state.useGeezNumerals = useGeezNumerals;
-            this.updateGeezNumerals();
-        });
-
-        // Connect to settings changes
-        this.connectSignal(settings, "changed::calendar-language", () => {
-            const newLanguage =
-                (settings.get_string("calendar-language") as Language) ||
-                "amharic";
-            languageState.set(newLanguage);
-        });
-
-        // Connect to Geez numerals setting changes
-        this.connectSignal(settings, "changed::use-geez-numerals", () => {
-            const newUseGeezNumerals =
-                settings.get_boolean("use-geez-numerals");
-            geezNumeralsState.set(newUseGeezNumerals);
-        });
     }
 
-    onMount(): void {
+    private initialize(): void {
+        this.setupSettingsObservers();
         this.createUI();
         this.setupServices();
         this.setupNavigation();
@@ -164,7 +148,7 @@ export class CalendarPopup extends Component<
         // Connect settings button to open preferences
         this.settingsBtn.connect("clicked", () => {
             logger("Opening EthCal settings");
-            (this.props.extension as Extension).openPreferences();
+            (this.props.extension as ExtensionBase).openPreferences();
         });
 
         topRow.add_child(this.weekdayTitle);
@@ -262,10 +246,10 @@ export class CalendarPopup extends Component<
     private setupServices(): void {
         this.svc = new MonthGridService({
             weekStart: 1,
-            weekdayLang: this.state.language,
-            useGeez: this.state.useGeezNumerals,
+            weekdayLang: this.language,
+            useGeez: this.useGeezNumerals,
         });
-        this.dayInfoService = createDayInfoService(this.state.language);
+        this.dayInfoService = createDayInfoService(this.language);
     }
 
     public resetToCurrentMonth(): void {
@@ -281,10 +265,10 @@ export class CalendarPopup extends Component<
         // Update services with new language
         this.svc = new MonthGridService({
             weekStart: 1,
-            weekdayLang: this.state.language,
-            useGeez: this.state.useGeezNumerals,
+            weekdayLang: this.language,
+            useGeez: this.useGeezNumerals,
         });
-        this.dayInfoService = createDayInfoService(this.state.language);
+        this.dayInfoService = createDayInfoService(this.language);
 
         // Re-render with new language
         this.render();
@@ -297,8 +281,8 @@ export class CalendarPopup extends Component<
         // Update service with new Geez numerals setting
         this.svc = new MonthGridService({
             weekStart: 1,
-            weekdayLang: this.state.language,
-            useGeez: this.state.useGeezNumerals,
+            weekdayLang: this.language,
+            useGeez: this.useGeezNumerals,
         });
 
         // Re-render with new numerals
@@ -306,7 +290,7 @@ export class CalendarPopup extends Component<
     }
 
     private formatDate(day: number, month: number, year: number): string {
-        if (this.state.useGeezNumerals) {
+        if (this.useGeezNumerals) {
             // Convert to Geez numerals using Kenat library
             const kenat = new Kenat();
             const ethiopianDate = kenat.getEthiopian();
@@ -316,7 +300,7 @@ export class CalendarPopup extends Component<
 
             // Use Kenat's formatting with Geez numerals
             return kenat.format({
-                lang: this.state.language,
+                lang: this.language,
                 useGeez: true,
             });
         } else {
@@ -403,7 +387,6 @@ export class CalendarPopup extends Component<
 
         const data = this.svc.generate();
         this.titleLabel.text = `${data.monthName} ${data.year}`;
-        this.state.currentMonth = `${data.monthName} ${data.year}`;
 
         this.clearGrid();
 
@@ -469,7 +452,7 @@ export class CalendarPopup extends Component<
                 const e = day.ethiopian;
 
                 // Update selected date state using original numeric values
-                this.state.selectedDate = day.ethiopianNumeric;
+                this.selectedDate = day.ethiopianNumeric;
 
                 // Show day information in Today section
                 if (
@@ -478,7 +461,7 @@ export class CalendarPopup extends Component<
                     this.eventsList
                 ) {
                     const dayEvents = this.dayInfoService.getDayEvents(
-                        this.state.selectedDate,
+                        this.selectedDate,
                     );
 
                     this.eventsTitle.text = this.formatDate(
@@ -586,10 +569,7 @@ export class CalendarPopup extends Component<
         return this.item;
     }
 
-    onDestroy(): void {
-        // Clean up event handlers and resources
-        this.stateManager.destroy();
-
+    destroy(): void {
         // Clean up UI references
         this.item = undefined;
         this.outer = undefined;
@@ -609,5 +589,8 @@ export class CalendarPopup extends Component<
         // Clean up services
         this.svc = undefined;
         this.dayInfoService = undefined;
+
+        // Call parent destroy to clean up all registered cleanups
+        super.destroy();
     }
 }

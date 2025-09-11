@@ -1,20 +1,13 @@
-import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import { StatusBarIndicator } from "./components/StatusBarIndicator.js";
+import { ExtensionBase } from "./stignite/ExtensionBase.js";
 import { logger } from "./utils/logger.js";
 
-export default class EthCal extends Extension {
+export default class EthCal extends ExtensionBase {
     #statusBarIndicator: StatusBarIndicator | undefined;
 
-    enable() {
+    protected initialize(): void {
         logger("EthCal extension enabled");
         this.#statusBarIndicator = new StatusBarIndicator(this);
-    }
-
-    disable() {
-        logger("EthCal extension disabled");
-        if (this.#statusBarIndicator) {
-            this.#statusBarIndicator.onDestroy(); // Use Stignite's destroy method
-            this.#statusBarIndicator = undefined;
-        }
+        this.addComponent(this.#statusBarIndicator);
     }
 }
