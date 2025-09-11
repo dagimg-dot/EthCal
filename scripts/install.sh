@@ -27,19 +27,19 @@ DOWNLOAD_ZIP="$DOWNLOAD_DIR/$UUID.shell-extension.zip"
 
 # Logging functions
 log_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
+    echo -e "${BLUE}ℹ️  $1${NC}" >&2
 }
 
 log_success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    echo -e "${GREEN}✅ $1${NC}" >&2
 }
 
 log_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+    echo -e "${YELLOW}⚠️  $1${NC}" >&2
 }
 
 log_error() {
-    echo -e "${RED}❌ $1${NC}"
+    echo -e "${RED}❌ $1${NC}" >&2
 }
 
 # Function to check if command exists
@@ -70,14 +70,14 @@ is_extension_enabled() {
 get_latest_release_url() {
     local api_url="https://api.github.com/repos/$REPO/releases/latest"
 
-    log_info "Fetching latest release information..."
-
     if ! command_exists curl; then
         log_error "curl is required but not installed"
         log_error "Install curl with: sudo apt install curl  (Ubuntu/Debian)"
         log_error "Or: sudo dnf install curl  (Fedora)"
         exit 1
     fi
+
+    log_info "Fetching latest release information..."
 
     local response
     response=$(curl -s "$api_url" 2>/dev/null)
@@ -103,15 +103,19 @@ get_latest_release_url() {
 
     # Extract download URL for the shell extension zip
     local download_url
-    download_url=$(echo "$response" | grep -oP '"browser_download_url": "\K[^"]*\.shell-extension\.zip[^"]*' | head -1)
+    download_url=$(echo "$response" | grep -oP '"browser_download_url": "\K[^"]*\.shell-extension[^"]*\.zip[^"]*' | head -1)
 
     if [ -z "$download_url" ]; then
         log_error "Could not find shell extension zip in latest release"
         log_error "Available assets:"
-        echo "$response" | grep -oP '"name": "\K[^"]*' | grep -i "\.zip"
+        echo "$response" | grep -oP '"name": "\K[^"]*' | grep -i "\.zip" | sed 's/^/  /'
+        log_error ""
+        log_error "Expected asset name pattern: *shell-extension*.zip"
+        log_error "Please check the GitHub releases page for the correct asset name"
         exit 1
     fi
 
+    log_info "Found download URL: $download_url"
     echo "$download_url"
 }
 
@@ -120,7 +124,6 @@ download_latest_release() {
     local download_url="$1"
 
     log_info "Downloading latest release..."
-    log_info "URL: $download_url"
 
     # Create download directory if it doesn't exist
     mkdir -p "$DOWNLOAD_DIR"
@@ -129,8 +132,12 @@ download_latest_release() {
     rm -f "$DOWNLOAD_ZIP"
 
     # Download the file
-    if ! curl -L -o "$DOWNLOAD_ZIP" "$download_url"; then
-        log_error "Failed to download extension zip"
+    if ! curl -L --fail --silent --show-error -o "$DOWNLOAD_ZIP" "$download_url"; then
+        log_error "Failed to download extension zip from: $download_url"
+        log_error "This could be due to:"
+        log_error "  - Network connectivity issues"
+        log_error "  - Firewall blocking the download"
+        log_error "  - Invalid or expired download URL"
         exit 1
     fi
 
@@ -180,17 +187,11 @@ main() {
         log_warning "Extension $UUID is already installed"
         if is_extension_enabled; then
             log_success "Extension is already enabled"
-            exit 0
         else
-            log_info "Enabling existing extension..."
-            if gnome-extensions enable "$UUID"; then
-                log_success "Extension enabled successfully"
-                exit 0
-            else
-                log_error "Failed to enable extension"
-                exit 1
-            fi
+            log_info "Extension is installed but not enabled"
         fi
+        log_info "To enable it, restart GNOME Shell or log out and log back in"
+        exit 0
     fi
 
     # Choose between local build or download
@@ -231,66 +232,18 @@ main() {
 
     log_success "Extension installed successfully"
 
-    # Enable the extension
-    log_info "Enabling extension..."
-
-    # Sometimes GNOME needs a moment to recognize the newly installed extension
-    sleep 2
-
-    # Try to enable the extension
-    if ! gnome-extensions enable "$UUID"; then
-        log_warning "Failed to enable extension immediately. This can happen on some systems."
-
-        # Try to list available extensions to see if it's there
-        log_info "Checking available extensions..."
-        if gnome-extensions list | grep -q "$UUID"; then
-            log_info "Extension is installed but not enabled. Trying again..."
-
-            # Wait a bit more and try again
-            sleep 3
-            if gnome-extensions enable "$UUID"; then
-                log_success "Extension enabled successfully on second attempt"
-            else
-                log_error "Extension is installed but could not be enabled automatically"
-                log_info "Please try enabling it manually through the GNOME Extensions app"
-                log_info "Or run: gnome-extensions enable $UUID"
-                exit 1
-            fi
-        else
-            log_error "Extension was not found in the installed extensions list"
-            log_info "Available extensions:"
-            gnome-extensions list
-            exit 1
-        fi
-    else
-        log_success "Extension enabled successfully"
-    fi
-
-    # Optional: Restart GNOME Shell (only on X11)
-    if [ "$XDG_SESSION_TYPE" = "x11" ]; then
-        log_info "Restarting GNOME Shell to apply changes..."
-        if command_exists killall; then
-            killall -HUP gnome-shell
-            log_success "GNOME Shell restarted"
-        else
-            log_warning "Could not restart GNOME Shell automatically"
-            log_info "Please log out and log back in to complete the installation"
-        fi
-    else
-        log_info "Please log out and log back in to complete the installation"
-    fi
-
-    # Final success message
-    echo
     # Clean up downloaded file if it exists
     if [ -f "$DOWNLOAD_ZIP" ]; then
         rm -f "$DOWNLOAD_ZIP"
         log_info "Cleaned up temporary download file"
     fi
 
+    # Final success message
+    echo
     log_success "🎉 $EXTENSION_NAME has been successfully installed!"
-    log_info "You should now see the Ethiopian calendar indicator in your status bar"
-    log_info "Right-click the indicator to access settings"
+    log_info "Please restart GNOME Shell or log out and log back in to complete the installation"
+    log_info "After restarting, you should see the Ethiopian calendar indicator in your status bar"
+    log_info "Click the settings button inside the pop up to open the extension's settings"
 }
 
 # Show usage
