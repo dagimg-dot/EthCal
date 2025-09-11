@@ -6,6 +6,6 @@
   "shell-version": ["46", "47", "48"],
   "settings-schema": "org.gnome.shell.extensions.ethcal",
   "version-name": "0.1.0",
-  "version": "1",
+  "version": 0,
   "url": "https://github.com/dagimg-dot/EthCal"
 }

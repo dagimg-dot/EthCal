@@ -30,7 +30,6 @@
     "release": "bun scripts/bump-version.js release"
   },
   "dependencies": {
-    "kenat": "latest",
-    "stignite": "file:packages/stignite"
+    "kenat": "latest"
   }
 }
