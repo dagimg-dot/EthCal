@@ -482,9 +482,12 @@ export class CalendarPopup extends ComponentBase {
 
             if (day.isToday) {
                 btn.add_style_class_name("calendar-today");
+                if (day.holidays.length > 0) {
+                    btn.add_style_class_name("calendar-today-holiday");
+                }
             }
 
-            if (day.holidays.length > 0) {
+            if (!day.isToday && day.holidays.length > 0) {
                 btn.add_style_class_name("calendar-holiday");
 
                 // Add specific holiday type classes based on tags
