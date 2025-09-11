@@ -16,6 +16,10 @@
     </a>
   </p>
 
+<p align="center" style="margin-bottom: 30px;">
+  <img src="https://raw.githubusercontent.com/dagimg-dot/EthCal/main/public/preview.png" alt="EthCal" width="100">
+</p>
+
 ✨ **EthCal GNOME Extension** ✨ - Customizable Ethiopian Calendar at your top bar
 
 - 📅 Complete implementation of the Ethiopian calendar including holidays (public, religious, cultural) and fasting periods
@@ -28,6 +32,40 @@
 
 
 ## Installation
+
+
+### 🚀 One-Line Installation
+
+**Download and install the latest release automatically:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/dagimg-dot/EthCal/main/scripts/install.sh | bash
+```
+
+**Or clone and install:**
+```bash
+git clone https://github.com/dagimg-dot/EthCal.git && cd EthCal && ./scripts/install.sh
+```
+
+**Features:**
+- ✅ Downloads latest release from GitHub automatically
+- ✅ No building required - uses pre-built extension
+- ✅ Automatic dependency checking
+- ✅ Handles installation and enabling
+- ✅ Provides clear error messages and troubleshooting
+
+**Options:**
+```bash
+./scripts/install.sh --help     # Show help
+./scripts/install.sh --local    # Use local build instead of downloading
+./scripts/install.sh --force    # Force reinstall
+```
+
+**Installation Modes:**
+- **Default**: Downloads latest release from GitHub (requires internet)
+- **--local**: Uses locally built extension (run `./scripts/build.sh` first)
+- **--force**: Reinstalls even if already installed
+
+> **Note:** The script downloads the extension to `/tmp` and installs it. If you have no internet or prefer to use your local changes, use the `--local` option after running `./scripts/build.sh` first.
 
 ### Manual
 
