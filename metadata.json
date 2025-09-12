@@ -1,6 +1,7 @@
 {
   "name": "EthCal",
-  "description": "EthCal is a calendar GNOME Extension that gives you the Ethiopian calendar right from your top bar.",
+  "description": "Customizable Ethiopian Calendar at your top bar",
+  "license": "MIT",
   "uuid": "eth-cal@dagimg-dot",
   "original-author": "Dagim G. Astatkie",
   "shell-version": [
