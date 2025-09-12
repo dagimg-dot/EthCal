@@ -1,6 +1,7 @@
 import type Gio from "gi://Gio";
 import type { ExtensionMetadata } from "resource:///org/gnome/shell/extensions/extension.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
+import { logger } from "src/utils/logger.js";
 import type { ComponentBase } from "./ComponentBase.js";
 
 /**
@@ -84,6 +85,7 @@ export abstract class ExtensionBase extends Extension {
      */
     destroy(): void {
         // Destroy all components
+        logger("Destroying extension and all components");
         this.components.forEach((component) => component.destroy());
         this.components = [];
 
