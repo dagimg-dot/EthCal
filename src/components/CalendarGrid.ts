@@ -2,35 +2,21 @@ import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
 import St from "gi://St";
 import { ComponentBase } from "stignite";
-import type { MonthGridService } from "../services/monthGrid.js";
+import type {
+    DayCell,
+    MonthGridResult,
+    MonthGridService,
+} from "../services/monthGrid.js";
 import type { LanguageOption } from "../types/index.js";
 import { SETTINGS } from "../types/index.js";
-
-interface KenatDate {
-    day: number | string;
-    month: number;
-    year: number;
-}
-
-interface DayData {
-    day: number | null;
-    ethiopian: KenatDate;
-    ethiopianNumeric: KenatDate;
-    isToday: boolean;
-    holidays: { tags: string[] }[];
-}
-
-interface MonthData {
-    monthName: string;
-    year: number;
-    headers: string[];
-    days: DayData[];
-}
 
 export class CalendarGrid extends ComponentBase {
     private outer: St.Widget | undefined;
     private gridLayout: Clutter.GridLayout | undefined;
     private dayButtons: St.Button[] = [];
+
+    // Reactive setting values
+    private useGeezNumerals = SETTINGS.DEFAULTS.GEEZ_NUMERALS;
     private monthService: MonthGridService;
 
     constructor(monthService: MonthGridService, settings: Gio.Settings) {
@@ -45,7 +31,7 @@ export class CalendarGrid extends ComponentBase {
     }
 
     /**
-     * Initialize reactive settings
+     * Initialize reactive settings with enhanced event features
      */
     private initSettings(): void {
         this.withErrorHandling(() => {
@@ -66,8 +52,9 @@ export class CalendarGrid extends ComponentBase {
                 SETTINGS.KEYS.USE_GEEZ_NUMERALS,
                 SETTINGS.DEFAULTS.GEEZ_NUMERALS,
                 (useGeez: boolean) => {
+                    this.useGeezNumerals = useGeez; // Store reactive value
                     this.emit("geez-numerals-changed", useGeez);
-                    this.refresh();
+                    this.refresh(); // Refresh UI to show new numerals
                 },
             );
         }, "Failed to initialize calendar grid settings");
@@ -105,6 +92,10 @@ export class CalendarGrid extends ComponentBase {
      */
     private initLogic(): void {
         this.withErrorHandling(() => {
+            // Set initial reactive values
+            this.useGeezNumerals =
+                this.getReactiveSetting<boolean>("useGeezNumerals").value;
+
             this.refresh();
         }, "Failed to initialize calendar grid logic");
     }
@@ -116,7 +107,7 @@ export class CalendarGrid extends ComponentBase {
         }, "Failed to refresh calendar grid");
     }
 
-    private render(data: MonthData): void {
+    private render(data: MonthGridResult): void {
         if (!this.gridLayout || !this.outer) return;
 
         // Clear existing grid
@@ -144,7 +135,7 @@ export class CalendarGrid extends ComponentBase {
                 col = 0;
             }
 
-            if (!day || day.day === null) {
+            if (!day) {
                 // Empty cell
                 this.setCell(row, col, new St.Label({ text: "" }));
             } else {
@@ -158,7 +149,7 @@ export class CalendarGrid extends ComponentBase {
         });
     }
 
-    private createDayButton(day: DayData): St.Button {
+    private createDayButton(day: DayCell): St.Button {
         const label = this.formatDayLabel(day);
         const button = new St.Button({
             style_class: "calendar-day",
@@ -179,14 +170,13 @@ export class CalendarGrid extends ComponentBase {
             button.add_style_class_name("calendar-holiday");
 
             // Add specific holiday type classes
-            const allTags = day.holidays.flatMap((h) => h.tags);
-            if (allTags.includes("public")) {
+            if (day.holidayTags.includes("public")) {
                 button.add_style_class_name("public-holiday");
             }
-            if (allTags.includes("religious")) {
+            if (day.holidayTags.includes("religious")) {
                 button.add_style_class_name("religious-holiday");
             }
-            if (allTags.includes("cultural")) {
+            if (day.holidayTags.includes("cultural")) {
                 button.add_style_class_name("cultural-holiday");
             }
         }
@@ -201,17 +191,13 @@ export class CalendarGrid extends ComponentBase {
         return button;
     }
 
-    private formatDayLabel(day: DayData): string {
-        if (day.day === null) return "";
-
-        // Use Geez numerals if setting is enabled
-        const useGeez = SETTINGS.DEFAULTS.GEEZ_NUMERALS; // Could use reactive setting
-
-        if (useGeez && typeof day.ethiopian.day === "string") {
-            return day.ethiopian.day;
+    private formatDayLabel(day: DayCell): string {
+        // Use reactive Geez numerals setting
+        if (this.useGeezNumerals && typeof day.ethiopian.day === "string") {
+            return day.ethiopian.day; // Return Geez numeral string
         }
 
-        return String(day.ethiopian.day);
+        return String(day.ethiopianNumeric.day); // Return regular number
     }
 
     private clearGrid(): void {
@@ -222,17 +208,6 @@ export class CalendarGrid extends ComponentBase {
     private setCell(row: number, col: number, actor: St.Widget): void {
         if (!this.gridLayout) return;
         this.gridLayout.attach(actor, col, row, 1, 1);
-    }
-
-    public highlightDate(_date: KenatDate): void {
-        // Remove previous selection
-        this.dayButtons.forEach((btn) => {
-            btn.remove_style_class_name("calendar-selected");
-        });
-
-        // TODO: Implement date highlighting logic
-        // This would need to match the date parameter with button data
-        // For now, this is a placeholder implementation
     }
 
     public getWidget(): St.Widget {

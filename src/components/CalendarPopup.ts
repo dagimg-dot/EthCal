@@ -41,31 +41,37 @@ export class CalendarPopup extends ComponentBase {
     }
 
     /**
-     * Initialize reactive settings
+     * Initialize reactive settings - unified reactive API
      */
     private initSettings(): void {
         this.withErrorHandling(() => {
-            // Connect to language setting changes
-            this.connectSettingSignal(SETTINGS.KEYS.CALENDAR_LANGUAGE, () => {
-                const language = this.settings.get_string(
-                    SETTINGS.KEYS.CALENDAR_LANGUAGE,
-                ) as LanguageOption;
-                if (this.monthService) {
-                    this.monthService.weekdayLang = language;
-                    this.refreshMonthHeader();
-                }
-            });
+            // Reactive language setting for month service
+            this.addReactiveSetting(
+                "calendarLanguage",
+                SETTINGS.KEYS.CALENDAR_LANGUAGE,
+                SETTINGS.DEFAULTS.LANGUAGE,
+                (newLanguage: LanguageOption) => {
+                    if (this.monthService) {
+                        this.monthService.weekdayLang = newLanguage;
+                        this.refreshMonthHeader();
+                        this.emit("language-changed", newLanguage);
+                    }
+                },
+            );
 
-            // Connect to geez numerals setting changes
-            this.connectSettingSignal(SETTINGS.KEYS.USE_GEEZ_NUMERALS, () => {
-                const useGeez = this.settings.get_boolean(
-                    SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-                );
-                if (this.monthService) {
-                    this.monthService.useGeez = useGeez;
-                    this.refreshMonthHeader();
-                }
-            });
+            // Reactive geez numerals setting for month service
+            this.addReactiveSetting(
+                "useGeezNumerals",
+                SETTINGS.KEYS.USE_GEEZ_NUMERALS,
+                SETTINGS.DEFAULTS.GEEZ_NUMERALS,
+                (useGeez: boolean) => {
+                    if (this.monthService) {
+                        this.monthService.useGeez = useGeez;
+                        this.refreshMonthHeader();
+                        this.emit("geez-numerals-changed", useGeez);
+                    }
+                },
+            );
         }, "Failed to initialize calendar popup settings");
     }
 
@@ -102,13 +108,13 @@ export class CalendarPopup extends ComponentBase {
      */
     private initLogic(): void {
         this.withErrorHandling(() => {
-            // Initialize services with current settings
-            const language = this.settings.get_string(
-                SETTINGS.KEYS.CALENDAR_LANGUAGE,
-            ) as LanguageOption;
-            const useGeez = this.settings.get_boolean(
-                SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-            );
+            // Get reactive setting values (they're already initialized)
+            const language =
+                this.getReactiveSetting<LanguageOption>(
+                    "calendarLanguage",
+                ).value;
+            const useGeez =
+                this.getReactiveSetting<boolean>("useGeezNumerals").value;
 
             this.monthService = new MonthGridService({
                 weekStart: 1,
@@ -159,8 +165,9 @@ export class CalendarPopup extends ComponentBase {
             if (!this.grid || !this.topHeader || !this.monthHeader) return;
 
             // Connect grid day selection to events update
-            this.grid.connect("day-selected", (date: KenatDate) => {
-                this.onDateSelected(date);
+            this.grid.connect("day-selected", (date) => {
+                this.onDateSelected(date as KenatDate);
+                this.emit("date-selected", date);
             });
 
             // Connect top header settings click
@@ -177,11 +184,6 @@ export class CalendarPopup extends ComponentBase {
             // Update events section with selected date
             if (this.eventsSection) {
                 this.eventsSection.updateEvents(date);
-            }
-
-            // Highlight selected date in grid
-            if (this.grid) {
-                this.grid.highlightDate(date);
             }
         }, "Failed to handle date selection");
     }

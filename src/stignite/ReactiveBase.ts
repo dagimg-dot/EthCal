@@ -68,7 +68,17 @@ export class ReactiveSetting<T> {
     set value(newValue: T) {
         if (newValue !== this._value) {
             this._value = newValue;
-            this._settings.set_value(this._key, newValue as any);
+            // Convert to appropriate GVariant type
+            if (typeof newValue === "string") {
+                this._settings.set_string(this._key, newValue);
+            } else if (typeof newValue === "boolean") {
+                this._settings.set_boolean(this._key, newValue);
+            } else if (typeof newValue === "number") {
+                this._settings.set_int(this._key, newValue);
+            } else {
+                // Fallback for complex types - this should be avoided
+                this._settings.set_value(this._key, newValue as never);
+            }
         }
     }
 
@@ -83,13 +93,13 @@ export class ReactiveComputed<T> {
     private _updateFn: (value: T) => void;
     private _settings: Gio.Settings;
     private _keys: string[];
-    private _defaults: Record<string, any>;
+    private _defaults: Record<string, unknown>;
     private _cleanup?: (() => void)[];
 
     constructor(
         settings: Gio.Settings,
         keys: string[],
-        defaults: Record<string, any>,
+        defaults: Record<string, unknown>,
         updateFn: (value: T) => void,
     ) {
         this._settings = settings;
@@ -106,7 +116,7 @@ export class ReactiveComputed<T> {
     }
 
     private computeValue(): T {
-        const result: any = {};
+        const result: Record<string, unknown> = {};
         const defaultKeys = Object.keys(this._defaults);
 
         this._keys.forEach((key, index) => {

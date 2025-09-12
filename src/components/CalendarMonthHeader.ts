@@ -32,25 +32,35 @@ export class CalendarMonthHeader extends ComponentBase {
     }
 
     /**
-     * Initialize reactive settings
+     * Initialize reactive settings - unified reactive API
      */
     private initSettings(): void {
         this.withErrorHandling(() => {
-            // Connect to language setting changes
-            this.connectSettingSignal(SETTINGS.KEYS.CALENDAR_LANGUAGE, () => {
-                // Notify parent component to refresh the title
-                if (this.onLanguageChange) {
-                    this.onLanguageChange();
-                }
-            });
+            // Reactive language setting for title updates
+            this.addReactiveSetting(
+                "calendarLanguage",
+                SETTINGS.KEYS.CALENDAR_LANGUAGE,
+                SETTINGS.DEFAULTS.LANGUAGE,
+                (newLanguage) => {
+                    this.emit("language-changed", newLanguage);
+                    if (this.onLanguageChange) {
+                        this.onLanguageChange();
+                    }
+                },
+            );
 
-            // Connect to geez numerals setting changes
-            this.connectSettingSignal(SETTINGS.KEYS.USE_GEEZ_NUMERALS, () => {
-                // Notify parent component to refresh the title
-                if (this.onLanguageChange) {
-                    this.onLanguageChange();
-                }
-            });
+            // Reactive geez numerals setting for title updates
+            this.addReactiveSetting(
+                "useGeezNumerals",
+                SETTINGS.KEYS.USE_GEEZ_NUMERALS,
+                SETTINGS.DEFAULTS.GEEZ_NUMERALS,
+                (useGeez) => {
+                    this.emit("geez-numerals-changed", useGeez);
+                    if (this.onLanguageChange) {
+                        this.onLanguageChange();
+                    }
+                },
+            );
         }, "Failed to initialize month header settings");
     }
 

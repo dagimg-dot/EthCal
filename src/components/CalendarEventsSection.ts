@@ -26,31 +26,36 @@ export class CalendarEventsSection extends ComponentBase {
     }
 
     /**
-     * Initialize reactive settings
+     * Initialize reactive settings - unified reactive API
      */
     private initSettings(): void {
         this.withErrorHandling(() => {
-            // Reactive language setting for formatting and display text
-            this.connectSettingSignal(SETTINGS.KEYS.CALENDAR_LANGUAGE, () => {
-                // Update day info service with new language
-                const language = this.settings.get_string(
-                    SETTINGS.KEYS.CALENDAR_LANGUAGE,
-                ) as LanguageOption;
-                this.dayInfoService = createDayInfoService(language);
-
-                // Refresh display if we have current date
-                if (this.titleLabel && this.eventsList) {
-                    this.refreshDisplay();
-                }
-            });
+            // Reactive language setting for day info service and formatting
+            this.addReactiveSetting(
+                "calendarLanguage",
+                SETTINGS.KEYS.CALENDAR_LANGUAGE,
+                SETTINGS.DEFAULTS.LANGUAGE,
+                (newLanguage: LanguageOption) => {
+                    this.dayInfoService = createDayInfoService(newLanguage);
+                    this.emit("language-changed", newLanguage);
+                    if (this.titleLabel && this.eventsList) {
+                        this.refreshDisplay();
+                    }
+                },
+            );
 
             // Reactive geez numerals setting for date formatting
-            this.connectSettingSignal(SETTINGS.KEYS.USE_GEEZ_NUMERALS, () => {
-                // Refresh display with new numeral format
-                if (this.titleLabel && this.eventsList) {
-                    this.refreshDisplay();
-                }
-            });
+            this.addReactiveSetting(
+                "useGeezNumerals",
+                SETTINGS.KEYS.USE_GEEZ_NUMERALS,
+                SETTINGS.DEFAULTS.GEEZ_NUMERALS,
+                (useGeez: boolean) => {
+                    this.emit("geez-numerals-changed", useGeez);
+                    if (this.titleLabel && this.eventsList) {
+                        this.refreshDisplay();
+                    }
+                },
+            );
         }, "Failed to initialize events section settings");
     }
 
@@ -82,10 +87,11 @@ export class CalendarEventsSection extends ComponentBase {
      */
     private initLogic(): void {
         this.withErrorHandling(() => {
-            // Initialize day info service with current settings
-            const language = this.settings.get_string(
-                SETTINGS.KEYS.CALENDAR_LANGUAGE,
-            ) as LanguageOption;
+            // Get reactive setting values (already initialized)
+            const language =
+                this.getReactiveSetting<LanguageOption>(
+                    "calendarLanguage",
+                ).value;
             this.dayInfoService = createDayInfoService(language);
         }, "Failed to initialize events section logic");
     }

@@ -1,24 +1,53 @@
 import type Gio from "gi://Gio";
-import type GObject from "gi://GObject";
 import { logger } from "../utils/logger.js";
 import { ReactiveComputed, ReactiveSetting } from "./ReactiveBase.js";
 
-// Re-export for external use
 export { ReactiveComputed, ReactiveSetting } from "./ReactiveBase.js";
 
+// Event data type for component communication
+export type EventData =
+    | Record<string, unknown>
+    | string
+    | number
+    | boolean
+    | null
+    | undefined
+    | { year: number; month: number; day: number | string };
+
+// Wrapper types for reactive settings storage
+// biome-ignore lint/suspicious/noExplicitAny: allow any for wrapper type
+type ReactiveSettingWrapper = ReactiveSetting<any> | ReactiveComputed<any>;
+
 /**
- * Enhanced Component Base with Unified Reactive API
+ * Component Base with Unified Reactive API
  *
- * Provides both single-setting and multi-setting reactive patterns
+ * Provides reactive settings management and basic event communication.
+ * Minimal and focused - adds features only when actually needed.
+ *
+ * Key Features:
+ * 1. Reactive Settings: Automatic UI updates when settings change
+ * 2. Basic Event System: Simple pub/sub for component communication
+ * 3. Error Handling: Consistent error boundaries
+ * 4. Resource Management: Automatic cleanup of GObject signals and timers
  */
 export abstract class ComponentBase {
     protected settings: Gio.Settings;
     protected cleanup: (() => void)[] = [];
-    private _reactiveSettings = new Map<
-        string,
-        ReactiveSetting<any> | ReactiveComputed<any>
-    >();
-    private eventListeners = new Map<string, ((data?: any) => void)[]>();
+    private _reactiveSettings = new Map<string, ReactiveSettingWrapper>();
+
+    /**
+     * Get reactive setting by name with proper typing
+     */
+    protected getReactiveSetting<T>(
+        name: string,
+    ): ReactiveSetting<T> | ReactiveComputed<T> {
+        const setting = this._reactiveSettings.get(name);
+        if (!setting) {
+            throw new Error(`Reactive setting '${name}' not found`);
+        }
+        return setting as unknown as ReactiveSetting<T> | ReactiveComputed<T>;
+    }
+    private eventListeners = new Map<string, ((data: EventData) => void)[]>();
 
     constructor(settings: Gio.Settings) {
         this.settings = settings;
@@ -30,7 +59,7 @@ export abstract class ComponentBase {
     protected addReactiveSetting<T>(
         name: string,
         keys: string | string[],
-        defaults: T | Record<string, any>,
+        defaults: T | Record<string, unknown>,
         updateFn: (value: T) => void,
     ): ReactiveSetting<T> | ReactiveComputed<T> {
         if (typeof keys === "string") {
@@ -49,7 +78,7 @@ export abstract class ComponentBase {
             const computed = new ReactiveComputed(
                 this.settings,
                 keys,
-                defaults as Record<string, any>,
+                defaults as Record<string, unknown>,
                 updateFn,
             );
             computed.setCleanup(this.cleanup);
@@ -59,46 +88,10 @@ export abstract class ComponentBase {
     }
 
     /**
-     * Get reactive setting by name
-     */
-    protected getReactiveSetting<T>(
-        name: string,
-    ): ReactiveSetting<T> | ReactiveComputed<T> {
-        const setting = this._reactiveSettings.get(name);
-        if (!setting) {
-            throw new Error(`Reactive setting '${name}' not found`);
-        }
-        return setting as ReactiveSetting<T> | ReactiveComputed<T>;
-    }
-
-    /**
      * Add cleanup function - will be called when component is destroyed
      */
     protected addCleanup(cleanup: () => void): void {
         this.cleanup.push(cleanup);
-    }
-
-    /**
-     * Connect to GObject signal with automatic cleanup
-     */
-    protected connectSignal(
-        object: GObject.Object,
-        signalName: string,
-        callback: (...args: unknown[]) => void,
-    ): void {
-        const handlerId = object.connect(signalName, callback);
-        this.addCleanup(() => object.disconnect(handlerId));
-    }
-
-    /**
-     * Simple settings signal connection - just pass the key and method reference
-     */
-    protected connectSettingSignal(key: string, callback: () => void): void {
-        this.connectSignal(
-            this.settings as unknown as GObject.Object,
-            `changed::${key}`,
-            callback,
-        );
     }
 
     /**
@@ -116,14 +109,6 @@ export abstract class ComponentBase {
         );
         this.addCleanup(() => GLib.source_remove(timerId));
         return timerId;
-    }
-
-    /**
-     * Remove timer manually
-     */
-    protected removeTimer(timerId: number): void {
-        const GLib = imports.gi.GLib;
-        GLib.source_remove(timerId);
     }
 
     /**
@@ -159,38 +144,41 @@ export abstract class ComponentBase {
     /**
      * Emit a component event to all registered listeners
      */
-    protected emit(eventName: string, data?: any): void {
+    protected emit(eventName: string, data: EventData = null): void {
         this.withErrorHandling(() => {
             const listeners = this.eventListeners.get(eventName);
-            if (listeners) {
-                listeners.forEach((callback) => {
-                    try {
-                        callback(data);
-                    } catch (error) {
-                        logger(
-                            `Error in event listener for '${eventName}': ${error}`,
-                        );
-                    }
-                });
-            }
+            if (!listeners) return;
+
+            listeners.forEach((callback) => {
+                try {
+                    callback(data);
+                } catch (error) {
+                    logger(
+                        `Error in event listener for '${eventName}': ${error}`,
+                    );
+                }
+            });
         }, `Failed to emit component event '${eventName}'`);
     }
 
     /**
-     * Connect to component events with automatic cleanup
+     * Connect to component events
      */
-    public connect(eventName: string, callback: (data?: any) => void): void {
+    public connect(
+        eventName: string,
+        callback: (data: EventData) => void,
+    ): void {
         this.withErrorHandling(() => {
             if (!this.eventListeners.has(eventName)) {
                 this.eventListeners.set(eventName, []);
             }
+
             const listeners = this.eventListeners.get(eventName);
             if (listeners) {
                 listeners.push(callback);
+                // Auto-cleanup when component is destroyed
+                this.addCleanup(() => this.disconnect(eventName, callback));
             }
-
-            // Auto-cleanup when component is destroyed
-            this.addCleanup(() => this.disconnect(eventName, callback));
         }, `Failed to connect to event '${eventName}'`);
     }
 
@@ -199,7 +187,7 @@ export abstract class ComponentBase {
      */
     protected disconnect(
         eventName: string,
-        callback: (data?: any) => void,
+        callback: (data: EventData) => void,
     ): void {
         this.withErrorHandling(() => {
             const listeners = this.eventListeners.get(eventName);
