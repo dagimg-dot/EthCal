@@ -3,11 +3,11 @@ import Pango from "gi://Pango";
 import St from "gi://St";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "kenat";
+import { ComponentBase, type ExtensionBase } from "stignite";
+
 import type { KenatDate } from "../services/dayInfoService.js";
 import { createDayInfoService } from "../services/dayInfoService.js";
 import { MonthGridService } from "../services/monthGrid.js";
-import { ComponentBase } from "../stignite/ComponentBase.js";
-import type { ExtensionBase } from "../stignite/ExtensionBase.js";
 import type { LanguageOption } from "../types/index.js";
 import { SETTINGS } from "../types/index.js";
 import { logger } from "../utils/logger.js";

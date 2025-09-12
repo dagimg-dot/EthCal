@@ -4,12 +4,11 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "kenat";
+import { ComponentBase, type ExtensionBase } from "stignite";
 import {
     createDateFormatterService,
     type DateFormatterService,
 } from "../services/dateFormatter.js";
-import { ComponentBase } from "../stignite/ComponentBase.js";
-import type { ExtensionBase } from "../stignite/ExtensionBase.js";
 import type {
     FormatOption,
     LanguageOption,

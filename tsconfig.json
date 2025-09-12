@@ -10,9 +10,9 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "stignite": ["./packages/stignite/src/index.ts"],
-      "stignite/*": ["./packages/stignite/src/*"]
+      "stignite": ["./src/stignite/index.ts"],
+      "stignite/*": ["./src/stignite/*"]
     }
   },
-  "include": ["ambient.d.ts", "src/**/*.ts", "packages/**/*.ts"]
+  "include": ["ambient.d.ts", "src/**/*.ts"]
 }

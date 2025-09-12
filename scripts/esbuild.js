@@ -23,6 +23,6 @@ esbuild.build({
     ],
     // Resolve local stignite package
     alias: {
-        stignite: "./packages/stignite/src/index.js",
+        stignite: "./src/stignite/index.js",
     },
 });

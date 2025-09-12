@@ -15,13 +15,7 @@ export abstract class ExtensionBase extends Extension {
     constructor(metadata: ExtensionMetadata) {
         super(metadata);
         this.settings = this.getSettings();
-        this.initialize();
     }
-
-    /**
-     * Override this to set up your extension
-     */
-    protected abstract initialize(): void;
 
     /**
      * Add a component for automatic cleanup
