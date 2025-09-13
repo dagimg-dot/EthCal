@@ -10,7 +10,7 @@
     "48"
   ],
   "settings-schema": "org.gnome.shell.extensions.ethcal",
-  "version-name": "1.1.0",
-  "version": 2,
+  "version-name": "1.2.0",
+  "version": 3,
   "url": "https://github.com/dagimg-dot/EthCal"
 }
