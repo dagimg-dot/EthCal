@@ -178,7 +178,7 @@ export class DateFormatterService {
         if (this.options.language === "amharic") {
             if (hour >= 1 && hour < 6 && period === "day") return "ጠዋት";
             if (hour >= 6 && hour < 12 && period === "day") return "ከሰዓት";
-            if (hour >= 1 && hour < 6 && period === "night") return "ማታ";
+            if (hour >= 1 && hour < 6 && period === "night") return "ምሽት";
             return "ሌሊት";
         } else {
             if (hour >= 1 && hour < 6 && period === "day") return "Morning";
