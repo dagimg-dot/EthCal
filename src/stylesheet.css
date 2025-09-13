@@ -28,12 +28,20 @@
   padding: 4px;
   border-radius: 6px;
   transition: background-color 0.2s ease;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .calendar-nav-button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.08);
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 .calendar-nav-button:focus {
-  background-color: rgba(255, 255, 255, 0.15);
+  background-color: rgba(255, 255, 255, 0.08);
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   outline: 2px solid rgba(76, 141, 255, 0.6);
 }
 
@@ -41,12 +49,20 @@
   padding: 4px;
   border-radius: 6px;
   transition: background-color 0.2s ease;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .calendar-settings-button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.08);
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 .calendar-settings-button:focus {
-  background-color: rgba(255, 255, 255, 0.15);
+  background-color: rgba(255, 255, 255, 0.08);
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   outline: 2px solid rgba(76, 141, 255, 0.6);
 }
 
@@ -71,11 +87,20 @@
   flex: 1;
 }
 .calendar-day:hover {
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.08);
+  transition: all 0.2s ease;
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 .calendar-today {
   background-color: #4c8dff;
   color: white;
+}
+.calendar-today:hover {
+  transition: all 0.2s ease;
+  background-color: #2b73f0;
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .calendar-today-holiday {
@@ -111,6 +136,13 @@
   padding: 10px;
   width: 100%;
 }
+
+.calendar-events:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
 .calendar-events-title {
   font-weight: 600;
   margin-bottom: 6px;
@@ -153,4 +185,98 @@
 .calendar-event-empty {
   opacity: 0.5;
   font-style: italic;
+}
+
+/* Floating Month/Year Picker Styling */
+.calendar-title-clickable {
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 6px;
+  padding: 4px 8px;
+  position: relative;
+}
+
+.calendar-title-clickable:hover,
+.calendar-title-hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Floating picker container - normal flow positioning */
+.floating-picker-container {
+  background: transparent;
+  border-radius: 0;
+  padding: 8px 0;
+  margin: 4px 0;
+  z-index: 1000;
+  pointer-events: auto;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Individual slider containers - match calendar style */
+.floating-month-slider-container,
+.floating-year-slider-container {
+  margin: 0 12px;
+  height: 80px;
+  max-height: 130px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.floating-month-slider,
+.floating-year-slider {
+  padding: 6px 0;
+  height: 80px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+}
+
+/* Floating picker items - match calendar style */
+.floating-picker-item {
+  padding: 6px 16px;
+  margin: 1px 2px;
+  border-radius: 4px;
+  text-align: center;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.floating-picker-item:hover,
+.floating-picker-item-hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  color: rgba(255, 255, 255, 1);
+}
+
+.floating-picker-item-selected {
+  background-color: rgba(76, 141, 255, 0.3);
+  border: 2px solid rgba(76, 141, 255, 0.6);
+  font-weight: 600;
+  color: #4c8dff;
+  transform: scale(1.02);
+}
+
+.floating-picker-item-selected:hover {
+  background-color: rgba(76, 141, 255, 0.4);
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }

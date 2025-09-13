@@ -10,6 +10,7 @@ import { CalendarEventsSection } from "./CalendarEventsSection.js";
 import { CalendarGrid } from "./CalendarGrid.js";
 import { CalendarMonthHeader } from "./CalendarMonthHeader.js";
 import { CalendarTopHeader } from "./CalendarTopHeader.js";
+import { MonthYearPicker } from "./MonthYearPicker.js";
 
 @ReactiveComponent({
     dependencies: {
@@ -29,12 +30,14 @@ export class CalendarPopup extends ComponentBase {
     private monthHeader: CalendarMonthHeader | undefined;
     private grid: CalendarGrid | undefined;
     private eventsSection: CalendarEventsSection | undefined;
+    private monthYearPicker: MonthYearPicker | undefined;
 
     // Services
     private monthService: MonthGridService | undefined;
 
     // State
     private selectedDate: KenatDate | null = null;
+    private isPickerVisible: boolean = false;
     private extension: ExtensionBase;
 
     constructor(extension: ExtensionBase) {
@@ -137,6 +140,7 @@ export class CalendarPopup extends ComponentBase {
                 () => this.onPrevMonth(),
                 () => this.onNextMonth(),
                 () => this.refreshMonthHeader(),
+                () => this.onTitleClick(),
             );
             this.outer.add_child(this.monthHeader.getWidget());
 
@@ -197,6 +201,77 @@ export class CalendarPopup extends ComponentBase {
                 this.refresh();
             }
         }, "Failed to navigate to next month");
+    }
+
+    private onTitleClick(): void {
+        this.withErrorHandling(() => {
+            this.toggleMonthYearPicker();
+        }, "Failed to handle title click");
+    }
+
+    private toggleMonthYearPicker(): void {
+        if (this.isPickerVisible) {
+            this.hideMonthYearPicker();
+        } else {
+            this.showMonthYearPicker();
+        }
+    }
+
+    private showMonthYearPicker(): void {
+        if (!this.outer || !this.monthService) return;
+
+        // Create picker if it doesn't exist
+        if (!this.monthYearPicker) {
+            this.monthYearPicker = new MonthYearPicker(
+                this.settings,
+                this.monthService.month,
+                this.monthService.year,
+                (month: number, year: number) =>
+                    this.onDateSelectedFromPicker(month, year),
+            );
+        } else {
+            // Update picker with current date
+            this.monthYearPicker.setCurrentDate(
+                this.monthService.month,
+                this.monthService.year,
+            );
+        }
+
+        // Insert picker right after month header
+        const monthHeaderWidget = this.monthHeader?.getWidget();
+        if (monthHeaderWidget) {
+            const index = this.outer.get_children().indexOf(monthHeaderWidget);
+            this.outer.insert_child_at_index(
+                this.monthYearPicker.getWidget(),
+                index + 1,
+            );
+        }
+
+        this.isPickerVisible = true;
+    }
+
+    private hideMonthYearPicker(): void {
+        if (!this.outer || !this.monthYearPicker) return;
+
+        // Remove picker from display
+        const pickerWidget = this.monthYearPicker.getWidget();
+        if (this.outer.get_children().includes(pickerWidget)) {
+            this.outer.remove_child(pickerWidget);
+        }
+        this.isPickerVisible = false;
+    }
+
+    private onDateSelectedFromPicker(month: number, year: number): void {
+        this.withErrorHandling(() => {
+            if (this.monthService) {
+                // Navigate to selected month/year
+                this.monthService.setDate(month, year);
+                this.refresh();
+
+                // Hide picker after selection
+                this.hideMonthYearPicker();
+            }
+        }, "Failed to handle date selection from picker");
     }
 
     /**
@@ -310,6 +385,11 @@ export class CalendarPopup extends ComponentBase {
         if (this.eventsSection) {
             this.eventsSection.destroy();
             this.eventsSection = undefined;
+        }
+
+        if (this.monthYearPicker) {
+            this.monthYearPicker.destroy();
+            this.monthYearPicker = undefined;
         }
 
         // Clean up main UI

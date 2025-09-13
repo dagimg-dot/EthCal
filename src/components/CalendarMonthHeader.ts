@@ -1,3 +1,4 @@
+import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
 import St from "gi://St";
 import { ComponentBase, ReactiveComponent } from "stignite";
@@ -20,17 +21,20 @@ export class CalendarMonthHeader extends ComponentBase {
     private onPrevClick?: () => void;
     private onNextClick?: () => void;
     private onLanguageChange?: () => void;
+    private onTitleClick?: () => void;
 
     constructor(
         settings: Gio.Settings,
         onPrevClick?: () => void,
         onNextClick?: () => void,
         onLanguageChange?: () => void,
+        onTitleClick?: () => void,
     ) {
         super(settings);
         this.onPrevClick = onPrevClick;
         this.onNextClick = onNextClick;
         this.onLanguageChange = onLanguageChange;
+        this.onTitleClick = onTitleClick;
 
         // Initial render
         this.render({ force: true });
@@ -120,10 +124,28 @@ export class CalendarMonthHeader extends ComponentBase {
     private createTitleLabel(): void {
         if (!this.outer) return;
 
-        // Title label
+        // Title label - make it clickable
         this.titleLabel = new St.Label({
             text: "",
-            style_class: "calendar-title",
+            style_class: "calendar-title calendar-title-clickable",
+            reactive: true,
+            can_focus: true,
+        });
+
+        // Connect click event
+        this.titleLabel.connect("button-press-event", () => {
+            this.emit("title-clicked");
+            this.onTitleClick?.();
+            return Clutter.EVENT_STOP;
+        });
+
+        // Add hover effect
+        this.titleLabel.connect("enter-event", () => {
+            this.titleLabel?.add_style_class_name("calendar-title-hover");
+        });
+
+        this.titleLabel.connect("leave-event", () => {
+            this.titleLabel?.remove_style_class_name("calendar-title-hover");
         });
 
         // Add spacers and title

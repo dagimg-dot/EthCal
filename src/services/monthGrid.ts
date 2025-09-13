@@ -286,6 +286,12 @@ export class MonthGridService {
         this.month = current.month;
         return this;
     }
+
+    setDate(month: number, year: number): this {
+        this.month = month;
+        this.year = year;
+        return this;
+    }
 }
 
 export function createMonthGrid(
