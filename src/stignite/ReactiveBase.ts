@@ -1,160 +1,145 @@
-import type Gio from "gi://Gio";
+import { logger } from "../utils/logger.js";
+import type { ComponentBase } from "./ComponentBase.js";
+import type {
+    ComponentId,
+    ComponentUpdateInfo,
+    ReactiveComponentConfig,
+    SettingKey,
+} from "./types.js";
 
-// Reactive Setting for single values
-export class ReactiveSetting<T> {
-    private _value: T;
-    private _updateFn: (value: T) => void;
-    private _settings: Gio.Settings;
-    private _key: string;
-    private _defaultValue: T;
-    private _cleanup?: (() => void)[];
+/**
+ * Reactive Component Decorator
+ *
+ * Automatically configures a component with:
+ * - Component ID for identification
+ * - Dependencies for smart updates
+ * - Update priority for processing order
+ * - Registration with UpdateOrchestrator
+ */
+export function ReactiveComponent(config: ReactiveComponentConfig) {
+    // biome-ignore lint/suspicious/noExplicitAny: allow the decorator to work with any component
+    return <T extends { new (...args: any[]): ComponentBase }>(target: T) =>
+        class extends target {
+            // biome-ignore lint/suspicious/noExplicitAny: allow the constructor to work with any arguments
+            constructor(...args: any[]) {
+                super(...args);
 
-    constructor(
-        settings: Gio.Settings,
-        key: string,
-        defaultValue: T,
-        updateFn: (value: T) => void,
-    ) {
-        this._settings = settings;
-        this._key = key;
-        this._defaultValue = defaultValue;
-        this._updateFn = updateFn;
-        this._value = this.getValue();
+                // Set component properties from config
+                this.componentId =
+                    config.id || `component-${Date.now()}-${Math.random()}`;
+                this.dependencies = config.dependencies;
+                this.updatePriority = config.priority || 0;
 
-        this.connect();
-    }
-
-    private getValue(): T {
-        try {
-            // get_value returns a GVariant, we need to unpack it based on the expected type
-            const variant = this._settings.get_value(this._key);
-            if (variant) {
-                // Unpack based on the default value type
-                if (typeof this._defaultValue === "string") {
-                    return variant.unpack() as T;
-                } else if (typeof this._defaultValue === "boolean") {
-                    return variant.unpack() as T;
-                } else if (typeof this._defaultValue === "number") {
-                    return variant.unpack() as T;
-                }
-                return variant.unpack() as T;
+                // Register with orchestrator after construction
+                this.registerWithOrchestrator();
             }
-        } catch (_error) {
-            // Silently fall back to default value
-        }
-        return this._defaultValue;
-    }
-
-    private connect(): void {
-        const handlerId = this._settings.connect(
-            `changed::${this._key}`,
-            () => {
-                const newValue = this.getValue();
-                if (newValue !== this._value) {
-                    this._value = newValue;
-                    this._updateFn(newValue);
-                }
-            },
-        );
-
-        // Add to cleanup if available
-        this._cleanup?.push(() => this._settings.disconnect(handlerId));
-    }
-
-    get value(): T {
-        return this._value;
-    }
-
-    set value(newValue: T) {
-        if (newValue !== this._value) {
-            this._value = newValue;
-            // Convert to appropriate GVariant type
-            if (typeof newValue === "string") {
-                this._settings.set_string(this._key, newValue);
-            } else if (typeof newValue === "boolean") {
-                this._settings.set_boolean(this._key, newValue);
-            } else if (typeof newValue === "number") {
-                this._settings.set_int(this._key, newValue);
-            } else {
-                // Fallback for complex types - this should be avoided
-                this._settings.set_value(this._key, newValue as never);
-            }
-        }
-    }
-
-    setCleanup(cleanup: (() => void)[]): void {
-        this._cleanup = cleanup;
-    }
+        };
 }
 
-// Reactive Computed for multiple settings
-export class ReactiveComputed<T> {
-    private _value: T;
-    private _updateFn: (value: T) => void;
-    private _settings: Gio.Settings;
-    private _keys: string[];
-    private _defaults: Record<string, unknown>;
-    private _cleanup?: (() => void)[];
+/**
+ * Update Orchestrator - Singleton for managing component updates
+ *
+ * Handles the dependency graph and processes component updates
+ * based on setting changes and component priorities.
+ */
+export class UpdateOrchestrator {
+    private static instance: UpdateOrchestrator;
+    private componentRegistry = new Map<ComponentId, ComponentBase>();
+    private dependencyGraph = new Map<SettingKey, Set<ComponentId>>();
+    private updateQueue: ComponentUpdateInfo[] = [];
+    private isProcessing = false;
 
-    constructor(
-        settings: Gio.Settings,
-        keys: string[],
-        defaults: Record<string, unknown>,
-        updateFn: (value: T) => void,
-    ) {
-        this._settings = settings;
-        this._keys = keys;
-        this._defaults = defaults;
-        this._updateFn = updateFn;
-        this._value = this.computeValue();
-
-        // Initial update
-        this._updateFn(this._value);
-
-        // Connect to all settings
-        this.connect();
+    static getInstance(): UpdateOrchestrator {
+        if (!UpdateOrchestrator.instance) {
+            UpdateOrchestrator.instance = new UpdateOrchestrator();
+        }
+        return UpdateOrchestrator.instance;
     }
 
-    private computeValue(): T {
-        const result: Record<string, unknown> = {};
-        const defaultKeys = Object.keys(this._defaults);
+    registerComponent(component: ComponentBase): void {
+        if (!component.componentId) {
+            component.componentId = `component-${Date.now()}-${Math.random()}`;
+        }
 
-        this._keys.forEach((key, index) => {
-            const keyName = defaultKeys[index];
-            try {
-                const variant = this._settings.get_value(key);
-                if (variant) {
-                    result[keyName] = variant.unpack();
-                } else {
-                    result[keyName] = this._defaults[keyName];
-                }
-            } catch (error) {
-                console.error(`Error getting value for key ${key}:`, error);
-                result[keyName] = this._defaults[keyName];
+        this.componentRegistry.set(component.componentId, component);
+
+        // Register dependencies
+        Object.keys(component.dependencies).forEach((settingKey) => {
+            if (!this.dependencyGraph.has(settingKey)) {
+                this.dependencyGraph.set(settingKey, new Set());
+            }
+            this.dependencyGraph.get(settingKey)?.add(component.componentId);
+        });
+    }
+
+    unregisterComponent(componentId: ComponentId): void {
+        this.componentRegistry.delete(componentId);
+
+        // Remove from dependency graph
+        this.dependencyGraph.forEach((componentSet) => {
+            componentSet.delete(componentId);
+        });
+    }
+
+    notifySettingChanged(settingKey: SettingKey, newValue: unknown): void {
+        const affectedComponents = this.dependencyGraph.get(settingKey);
+
+        if (!affectedComponents || affectedComponents.size === 0) {
+            return;
+        }
+
+        // Create update info for each affected component
+        affectedComponents.forEach((componentId) => {
+            const component = this.componentRegistry.get(componentId);
+            if (component) {
+                const affectedParts = component.getAffectedParts(settingKey);
+                const updateInfo: ComponentUpdateInfo = {
+                    componentId,
+                    affectedParts,
+                    changes: { [settingKey]: newValue },
+                    priority: component.updatePriority,
+                };
+                this.updateQueue.push(updateInfo);
             }
         });
-        return result as T;
+
+        // Process updates
+        this.processUpdateQueue();
     }
 
-    private connect(): void {
-        this._keys.forEach((key) => {
-            const handlerId = this._settings.connect(`changed::${key}`, () => {
-                const newValue = this.computeValue();
-                // Deep comparison for objects
-                if (JSON.stringify(newValue) !== JSON.stringify(this._value)) {
-                    this._value = newValue;
-                    this._updateFn(newValue);
+    private async processUpdateQueue(): Promise<void> {
+        if (this.isProcessing || this.updateQueue.length === 0) {
+            return;
+        }
+
+        this.isProcessing = true;
+
+        // Sort by priority (higher priority first)
+        this.updateQueue.sort((a, b) => b.priority - a.priority);
+
+        const currentBatch = [...this.updateQueue];
+        this.updateQueue = [];
+
+        // Process batch
+        for (const updateInfo of currentBatch) {
+            const component = this.componentRegistry.get(
+                updateInfo.componentId,
+            );
+            if (component) {
+                try {
+                    component.render({
+                        changes: updateInfo.changes,
+                        affectedParts: updateInfo.affectedParts,
+                        priority: updateInfo.priority,
+                    });
+                } catch (error) {
+                    logger(
+                        `Error updating component ${updateInfo.componentId}: ${error}`,
+                    );
                 }
-            });
-            this._cleanup?.push(() => this._settings.disconnect(handlerId));
-        });
-    }
+            }
+        }
 
-    get value(): T {
-        return this._value;
-    }
-
-    setCleanup(cleanup: (() => void)[]): void {
-        this._cleanup = cleanup;
+        this.isProcessing = false;
     }
 }

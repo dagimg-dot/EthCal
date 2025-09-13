@@ -3,7 +3,7 @@ import type { ExtensionMetadata } from "resource:///org/gnome/shell/extensions/e
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import { logger } from "src/utils/logger.js";
 import type { ComponentBase } from "./ComponentBase.js";
-import { UpdateOrchestrator } from "./ComponentBase.js";
+import { UpdateOrchestrator } from "./ReactiveBase.js";
 
 /**
  * Base class
@@ -43,24 +43,6 @@ export abstract class ExtensionBase extends Extension {
     protected onSettingChange(key: string, callback: () => void): void {
         const handlerId = this.settings.connect(`changed::${key}`, callback);
         this.addCleanup(() => this.settings.disconnect(handlerId));
-    }
-
-    /**
-     * Get setting value with type safety
-     */
-    public getSetting<T>(key: string, defaultValue: T): T {
-        try {
-            if (typeof defaultValue === "string") {
-                return this.settings.get_string(key) as T;
-            } else if (typeof defaultValue === "boolean") {
-                return this.settings.get_boolean(key) as T;
-            } else if (typeof defaultValue === "number") {
-                return this.settings.get_int(key) as T;
-            }
-            return defaultValue;
-        } catch {
-            return defaultValue;
-        }
     }
 
     /**

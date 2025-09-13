@@ -1,16 +1,9 @@
-import {
-    ComponentBase,
-    ReactiveComponent,
-    UpdateOrchestrator,
-} from "./ComponentBase.js";
+import { ComponentBase } from "./ComponentBase.js";
 import { ExtensionBase } from "./ExtensionBase.js";
-import { ReactiveComputed, ReactiveSetting } from "./ReactiveBase.js";
+import { ReactiveComponent, UpdateOrchestrator } from "./ReactiveBase.js";
 
-export {
-    ExtensionBase,
-    ComponentBase,
-    ReactiveComponent,
-    UpdateOrchestrator,
-    ReactiveSetting,
-    ReactiveComputed,
-};
+// Export all types
+export type * from "./types.js";
+
+// Export main classes
+export { ExtensionBase, ComponentBase, ReactiveComponent, UpdateOrchestrator };
