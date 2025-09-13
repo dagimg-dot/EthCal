@@ -4,13 +4,7 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "kenat";
-import {
-    ComponentBase,
-    type ExtensionBase,
-    ReactiveComponent,
-    type ReactiveComputed,
-    type ReactiveSetting,
-} from "stignite";
+import { ComponentBase, type ExtensionBase, ReactiveComponent } from "stignite";
 import {
     createDateFormatterService,
     type DateFormatterService,
@@ -33,14 +27,6 @@ interface MainPanelWithManager extends MainPanel {
     menuManager?: PopupMenu.PopupMenuManager;
 }
 
-// Type for time display settings
-interface TimeDisplaySettings {
-    format: FormatOption;
-    customFormat: string;
-    useGeezNumerals: boolean;
-    language: LanguageOption;
-}
-
 @ReactiveComponent({
     dependencies: {
         [SETTINGS.KEYS.STATUS_BAR_POSITION]: ["panel-position"],
@@ -59,10 +45,6 @@ export class StatusBarIndicator extends ComponentBase {
     private readonly timeout = 1.0;
     private extension: ExtensionBase;
 
-    // Reactive settings - unified API
-    private indicatorPosition!: ReactiveSetting<PositionOption>;
-    private timeDisplaySettings!: ReactiveComputed<TimeDisplaySettings>;
-
     // Services
     private dateFormatter: DateFormatterService | undefined;
 
@@ -71,39 +53,8 @@ export class StatusBarIndicator extends ComponentBase {
 
         this.extension = extension;
 
-        // Initialize reactive settings first
-        this.initSettings();
-
         // Initial render
         this.render({ force: true });
-    }
-
-    private initSettings(): void {
-        this.withErrorHandling(() => {
-            this.indicatorPosition = this.addReactiveSetting(
-                "position",
-                SETTINGS.KEYS.STATUS_BAR_POSITION,
-                SETTINGS.DEFAULTS.POSITION,
-                () => {}, // No-op - handled by render system
-            ) as ReactiveSetting<PositionOption>;
-
-            this.timeDisplaySettings = this.addReactiveSetting(
-                "timeDisplay",
-                [
-                    SETTINGS.KEYS.STATUS_BAR_FORMAT,
-                    SETTINGS.KEYS.STATUS_BAR_CUSTOM_FORMAT,
-                    SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-                    SETTINGS.KEYS.CALENDAR_LANGUAGE,
-                ],
-                {
-                    format: SETTINGS.DEFAULTS.FORMAT,
-                    customFormat: SETTINGS.DEFAULTS.CUSTOM_FORMAT,
-                    useGeezNumerals: SETTINGS.DEFAULTS.GEEZ_NUMERALS,
-                    language: SETTINGS.DEFAULTS.LANGUAGE,
-                },
-                () => {}, // No-op - handled by render system
-            ) as ReactiveComputed<TimeDisplaySettings>;
-        }, "Failed to initialize reactive settings");
     }
 
     /**
@@ -142,8 +93,12 @@ export class StatusBarIndicator extends ComponentBase {
 
             // Initialize services
             this.dateFormatter = createDateFormatterService({
-                language: this.timeDisplaySettings.value.language,
-                useGeezNumerals: this.timeDisplaySettings.value.useGeezNumerals,
+                language: this.settings.get_string(
+                    SETTINGS.KEYS.CALENDAR_LANGUAGE,
+                ) as LanguageOption,
+                useGeezNumerals: this.settings.get_boolean(
+                    SETTINGS.KEYS.USE_GEEZ_NUMERALS,
+                ),
             });
 
             // Set initial state
@@ -199,7 +154,10 @@ export class StatusBarIndicator extends ComponentBase {
                 right: "_rightBox",
             } as const;
 
-            const method = methodMap[this.indicatorPosition.value];
+            const position = this.settings.get_string(
+                SETTINGS.KEYS.STATUS_BAR_POSITION,
+            ) as PositionOption;
+            const method = methodMap[position];
 
             if (method) {
                 (Main.panel as unknown as MainPanel)[
@@ -218,8 +176,12 @@ export class StatusBarIndicator extends ComponentBase {
 
             // Update date formatter options with new settings
             this.dateFormatter.updateOptions({
-                language: this.timeDisplaySettings.value.language,
-                useGeezNumerals: this.timeDisplaySettings.value.useGeezNumerals,
+                language: this.settings.get_string(
+                    SETTINGS.KEYS.CALENDAR_LANGUAGE,
+                ) as LanguageOption,
+                useGeezNumerals: this.settings.get_boolean(
+                    SETTINGS.KEYS.USE_GEEZ_NUMERALS,
+                ),
             });
 
             const formattedTime = this.getCurrentDateAndTime();
@@ -235,11 +197,16 @@ export class StatusBarIndicator extends ComponentBase {
             if (!this.dateFormatter) return "";
 
             const kenat = new Kenat();
-            const settings = this.timeDisplaySettings.value;
+            const format = this.settings.get_string(
+                SETTINGS.KEYS.STATUS_BAR_FORMAT,
+            ) as FormatOption;
+            const customFormat = this.settings.get_string(
+                SETTINGS.KEYS.STATUS_BAR_CUSTOM_FORMAT,
+            );
 
             // Use custom format if selected, otherwise use predefined formats
-            if (settings.format === "custom") {
-                return this.dateFormatter.format(settings.customFormat, kenat);
+            if (format === "custom") {
+                return this.dateFormatter.format(customFormat, kenat);
             }
 
             // Map predefined formats to custom format strings
@@ -251,7 +218,7 @@ export class StatusBarIndicator extends ComponentBase {
             };
 
             const formatString =
-                formatMap[settings.format as Exclude<FormatOption, "custom">];
+                formatMap[format as Exclude<FormatOption, "custom">];
             return this.dateFormatter.format(formatString, kenat);
         }, "Failed to get current date and time");
     }

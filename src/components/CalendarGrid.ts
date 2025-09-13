@@ -7,7 +7,6 @@ import type {
     MonthGridResult,
     MonthGridService,
 } from "../services/monthGrid.js";
-import type { LanguageOption } from "../types/index.js";
 import { SETTINGS } from "../types/index.js";
 
 @ReactiveComponent({
@@ -31,41 +30,8 @@ export class CalendarGrid extends ComponentBase {
         super(settings);
         this.monthService = monthService;
 
-        // Initialize reactive settings first
-        this.initSettings();
-
         // Initial render
         this.render({ force: true });
-    }
-
-    /**
-     * Initialize reactive settings with enhanced event features
-     */
-    private initSettings(): void {
-        this.withErrorHandling(() => {
-            // Reactive language setting for day formatting
-            this.addReactiveSetting(
-                "language",
-                SETTINGS.KEYS.CALENDAR_LANGUAGE,
-                SETTINGS.DEFAULTS.LANGUAGE,
-                (newLanguage: LanguageOption) => {
-                    this.emit("language-changed", newLanguage);
-                    this.refresh();
-                },
-            );
-
-            // Reactive geez numerals setting
-            this.addReactiveSetting(
-                "useGeezNumerals",
-                SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-                SETTINGS.DEFAULTS.GEEZ_NUMERALS,
-                (useGeez: boolean) => {
-                    this.useGeezNumerals = useGeez; // Store reactive value
-                    this.emit("geez-numerals-changed", useGeez);
-                    this.refresh(); // Refresh UI to show new numerals
-                },
-            );
-        }, "Failed to initialize calendar grid settings");
     }
 
     /**
@@ -87,8 +53,9 @@ export class CalendarGrid extends ComponentBase {
             });
 
             // Set initial reactive values
-            this.useGeezNumerals =
-                this.getReactiveSetting<boolean>("useGeezNumerals").value;
+            this.useGeezNumerals = this.settings.get_boolean(
+                SETTINGS.KEYS.USE_GEEZ_NUMERALS,
+            );
 
             this.refresh();
         }, "Failed to render CalendarGrid initially");

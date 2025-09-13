@@ -1,8 +1,8 @@
+import type Gio from "gi://Gio";
 import St from "gi://St";
 import Kenat from "kenat";
-import { ComponentBase, type ExtensionBase, ReactiveComponent } from "stignite";
-import type { LanguageOption } from "../types/index.js";
-import { SETTINGS } from "../types/index.js";
+import { ComponentBase, ReactiveComponent } from "stignite";
+import { type LanguageOption, SETTINGS } from "../types/index.js";
 
 @ReactiveComponent({
     dependencies: {
@@ -17,46 +17,12 @@ export class CalendarTopHeader extends ComponentBase {
     private weekdayTitle: St.Label | undefined;
     private fullDateTitle: St.Label | undefined;
     private settingsBtn: St.Button | undefined;
-    private extension: ExtensionBase;
 
-    constructor(extension: ExtensionBase) {
-        super(extension.getSettings());
-        this.extension = extension;
-
-        // Initialize reactive settings first
-        this.initSettings();
+    constructor(settings: Gio.Settings) {
+        super(settings);
 
         // Initial render
         this.render({ force: true });
-    }
-
-    /**
-     * Initialize reactive settings
-     */
-    private initSettings(): void {
-        this.withErrorHandling(() => {
-            // Reactive language setting
-            this.addReactiveSetting(
-                "language",
-                SETTINGS.KEYS.CALENDAR_LANGUAGE,
-                SETTINGS.DEFAULTS.LANGUAGE,
-                (newLanguage: LanguageOption) => {
-                    this.emit("language-changed", newLanguage);
-                    this.updateDisplay();
-                },
-            );
-
-            // Reactive geez numerals setting
-            this.addReactiveSetting(
-                "useGeezNumerals",
-                SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-                SETTINGS.DEFAULTS.GEEZ_NUMERALS,
-                (useGeez: boolean) => {
-                    this.emit("geez-numerals-changed", useGeez);
-                    this.updateDisplay();
-                },
-            );
-        }, "Failed to initialize top header settings");
     }
 
     /**
@@ -147,13 +113,11 @@ export class CalendarTopHeader extends ComponentBase {
         if (!this.weekdayTitle || !this.fullDateTitle) return;
 
         const today = new Kenat();
-        const language = this.extension.getSetting(
+        const language = this.settings.get_string(
             SETTINGS.KEYS.CALENDAR_LANGUAGE,
-            SETTINGS.DEFAULTS.LANGUAGE,
-        );
-        const useGeezNumerals = this.extension.getSetting(
+        ) as LanguageOption;
+        const useGeezNumerals = this.settings.get_boolean(
             SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-            SETTINGS.DEFAULTS.GEEZ_NUMERALS,
         );
 
         this.weekdayTitle.text = today

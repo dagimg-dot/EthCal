@@ -26,45 +26,8 @@ export class CalendarEventsSection extends ComponentBase {
     constructor(settings: Gio.Settings) {
         super(settings);
 
-        // Initialize reactive settings first
-        this.initSettings();
-
         // Initial render
         this.render({ force: true });
-    }
-
-    /**
-     * Initialize reactive settings - unified reactive API
-     */
-    private initSettings(): void {
-        this.withErrorHandling(() => {
-            // Reactive language setting for day info service and formatting
-            this.addReactiveSetting(
-                "calendarLanguage",
-                SETTINGS.KEYS.CALENDAR_LANGUAGE,
-                SETTINGS.DEFAULTS.LANGUAGE,
-                (newLanguage: LanguageOption) => {
-                    this.dayInfoService = createDayInfoService(newLanguage);
-                    this.emit("language-changed", newLanguage);
-                    if (this.titleLabel && this.eventsList) {
-                        this.refreshDisplay();
-                    }
-                },
-            );
-
-            // Reactive geez numerals setting for date formatting
-            this.addReactiveSetting(
-                "useGeezNumerals",
-                SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-                SETTINGS.DEFAULTS.GEEZ_NUMERALS,
-                (useGeez: boolean) => {
-                    this.emit("geez-numerals-changed", useGeez);
-                    if (this.titleLabel && this.eventsList) {
-                        this.refreshDisplay();
-                    }
-                },
-            );
-        }, "Failed to initialize events section settings");
     }
 
     /**
@@ -82,11 +45,11 @@ export class CalendarEventsSection extends ComponentBase {
             this.createEventsList();
 
             // Initialize services
-            const language =
-                this.getReactiveSetting<LanguageOption>(
-                    "calendarLanguage",
-                ).value;
-            this.dayInfoService = createDayInfoService(language);
+            this.dayInfoService = createDayInfoService(
+                this.settings.get_string(
+                    SETTINGS.KEYS.CALENDAR_LANGUAGE,
+                ) as LanguageOption,
+            );
         }, "Failed to render CalendarEventsSection initially");
     }
 

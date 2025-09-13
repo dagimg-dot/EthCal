@@ -41,46 +41,8 @@ export class CalendarPopup extends ComponentBase {
         super(extension.getSettings());
         this.extension = extension;
 
-        // Initialize reactive settings first
-        this.initSettings();
-
         // Initial render
         this.render({ force: true });
-    }
-
-    /**
-     * Initialize reactive settings - unified reactive API
-     */
-    private initSettings(): void {
-        this.withErrorHandling(() => {
-            // Reactive language setting for month service
-            this.addReactiveSetting(
-                "calendarLanguage",
-                SETTINGS.KEYS.CALENDAR_LANGUAGE,
-                SETTINGS.DEFAULTS.LANGUAGE,
-                (newLanguage: LanguageOption) => {
-                    if (this.monthService) {
-                        this.monthService.weekdayLang = newLanguage;
-                        this.refreshMonthHeader();
-                        this.emit("language-changed", newLanguage);
-                    }
-                },
-            );
-
-            // Reactive geez numerals setting for month service
-            this.addReactiveSetting(
-                "useGeezNumerals",
-                SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-                SETTINGS.DEFAULTS.GEEZ_NUMERALS,
-                (useGeez: boolean) => {
-                    if (this.monthService) {
-                        this.monthService.useGeez = useGeez;
-                        this.refreshMonthHeader();
-                        this.emit("geez-numerals-changed", useGeez);
-                    }
-                },
-            );
-        }, "Failed to initialize calendar popup settings");
     }
 
     /**
@@ -102,17 +64,14 @@ export class CalendarPopup extends ComponentBase {
             this.item.add_child(this.outer);
 
             // Initialize services with current settings
-            const language =
-                this.getReactiveSetting<LanguageOption>(
-                    "calendarLanguage",
-                ).value;
-            const useGeez =
-                this.getReactiveSetting<boolean>("useGeezNumerals").value;
-
             this.monthService = new MonthGridService({
                 weekStart: 1,
-                weekdayLang: language,
-                useGeez: useGeez,
+                weekdayLang: this.settings.get_string(
+                    SETTINGS.KEYS.CALENDAR_LANGUAGE,
+                ) as LanguageOption,
+                useGeez: this.settings.get_boolean(
+                    SETTINGS.KEYS.USE_GEEZ_NUMERALS,
+                ),
             });
 
             // Create sub-components
@@ -169,7 +128,7 @@ export class CalendarPopup extends ComponentBase {
             if (!this.outer || !this.monthService) return;
 
             // Create top header
-            this.topHeader = new CalendarTopHeader(this.extension);
+            this.topHeader = new CalendarTopHeader(this.settings);
             this.outer.add_child(this.topHeader.getWidget());
 
             // Create month header with navigation callbacks and language change callback
