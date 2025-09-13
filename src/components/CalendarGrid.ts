@@ -84,14 +84,13 @@ export class CalendarGrid extends ComponentBase {
      */
     private updateDayLabels(): void {
         this.withErrorHandling(() => {
-            if (!this.dayButtons.length) return;
+            // Update the reactive value first
+            this.useGeezNumerals = this.settings.get_boolean(
+                SETTINGS.KEYS.USE_GEEZ_NUMERALS,
+            );
 
-            // Update each day button's label with new numeral format
-            this.dayButtons.forEach((_button, _index) => {
-                // This would need more complex logic to map button to day data
-                // For now, refresh the entire grid when numerals change
-                this.refresh();
-            });
+            // Refresh the entire grid with the new numeral format
+            this.refresh();
         }, "Failed to update day labels");
     }
 
