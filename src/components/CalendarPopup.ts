@@ -251,6 +251,17 @@ export class CalendarPopup extends ComponentBase {
     private refreshMonthHeader(): void {
         this.withErrorHandling(() => {
             if (this.monthHeader && this.monthService) {
+                // Update month service configuration with current settings
+                const language = this.settings.get_string(
+                    SETTINGS.KEYS.CALENDAR_LANGUAGE,
+                ) as LanguageOption;
+                const useGeez = this.settings.get_boolean(
+                    SETTINGS.KEYS.USE_GEEZ_NUMERALS,
+                );
+
+                this.monthService.weekdayLang = language;
+                this.monthService.useGeez = useGeez;
+
                 const data = this.monthService.generate();
                 this.monthHeader.setTitle(`${data.monthName} ${data.year}`);
             }

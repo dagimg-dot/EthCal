@@ -22,6 +22,7 @@ export class CalendarEventsSection extends ComponentBase {
     private titleLabel: St.Label | undefined;
     private eventsList: St.BoxLayout | undefined;
     private dayInfoService: ReturnType<typeof createDayInfoService> | undefined;
+    private currentDate: KenatDate | undefined;
 
     constructor(settings: Gio.Settings) {
         super(settings);
@@ -57,17 +58,38 @@ export class CalendarEventsSection extends ComponentBase {
      * Smart partial updates - called when settings change
      */
     protected renderUpdates(
-        _changes: Record<string, unknown>,
+        changes: Record<string, unknown>,
         affectedParts: string[],
     ): void {
         this.withErrorHandling(() => {
             if (
                 affectedParts.includes("event-titles") ||
-                affectedParts.includes("holiday-names") ||
-                affectedParts.includes("date-titles")
+                affectedParts.includes("holiday-names")
             ) {
-                // Refresh display when language or geez numerals change
-                this.refreshDisplay();
+                // Update dayInfoService language when language changes
+                if (
+                    changes[SETTINGS.KEYS.CALENDAR_LANGUAGE] &&
+                    this.dayInfoService
+                ) {
+                    const newLanguage = changes[
+                        SETTINGS.KEYS.CALENDAR_LANGUAGE
+                    ] as LanguageOption;
+                    this.dayInfoService.updateLanguage(newLanguage);
+
+                    // Re-render current events with new language
+                    if (this.currentDate) {
+                        this.updateEvents(this.currentDate);
+                    }
+                }
+
+                console.log("called with language change");
+            }
+
+            if (affectedParts.includes("date-titles")) {
+                // Update title when geez numerals change
+                if (this.currentDate) {
+                    this.updateTitle(this.currentDate);
+                }
             }
         }, "Failed to update CalendarEventsSection");
     }
@@ -90,8 +112,6 @@ export class CalendarEventsSection extends ComponentBase {
             vertical: true,
             style_class: "calendar-events-list",
         });
-
-        this.outer.add_child(this.eventsList);
     }
 
     public updateEvents(date: KenatDate): void {
@@ -100,20 +120,30 @@ export class CalendarEventsSection extends ComponentBase {
                 return;
             }
 
-            // Update title with selected date (formatted with current language/geez settings)
-            this.titleLabel.text = this.formatDate(
-                date.day,
-                date.month,
-                date.year,
-            );
+            // Store the current date for reactive updates
+            this.currentDate = date;
 
-            // Clear existing events
-            this.eventsList.get_children().forEach((child) => child.destroy());
-
-            // Get and display events for the selected date
-            const dayEvents = this.dayInfoService.getDayEvents(date);
-            this.renderEventList(dayEvents.events, this.eventsList);
+            // Update title and events
+            this.updateTitle(date);
+            this.updateEventsList(date);
         }, "Failed to update events for selected date");
+    }
+
+    private updateTitle(date: KenatDate): void {
+        if (!this.titleLabel) return;
+
+        this.titleLabel.text = this.formatDate(date.day, date.month, date.year);
+    }
+
+    private updateEventsList(date: KenatDate): void {
+        if (!this.eventsList || !this.dayInfoService) return;
+
+        // Clear existing events
+        this.eventsList.get_children().forEach((child) => child.destroy());
+
+        // Get and display events for the selected date
+        const dayEvents = this.dayInfoService.getDayEvents(date);
+        this.renderEventList(dayEvents.events, this.eventsList);
     }
 
     private formatDate(day: number, month: number, year: number): string {
@@ -214,32 +244,6 @@ export class CalendarEventsSection extends ComponentBase {
             texts[key as keyof typeof texts]?.amharic ||
             ""
         );
-    }
-
-    /**
-     * Refresh the display with current settings
-     */
-    private refreshDisplay(): void {
-        this.withErrorHandling(() => {
-            // Update title text in current language
-            if (this.titleLabel) {
-                this.titleLabel.text = this.getLocalizedText("today");
-            }
-
-            // Re-render empty state message if needed
-            if (this.eventsList) {
-                const children = this.eventsList.get_children();
-                if (children.length === 1 && children[0] instanceof St.Label) {
-                    const label = children[0] as St.Label;
-                    if (
-                        label.text === "No events found" ||
-                        label.text.includes("ማስታወሻ")
-                    ) {
-                        label.text = this.getLocalizedText("noEvents");
-                    }
-                }
-            }
-        }, "Failed to refresh display");
     }
 
     public getWidget(): St.BoxLayout {

@@ -57,6 +57,13 @@ export class DayInfoService {
     }
 
     /**
+     * Update the language setting
+     */
+    updateLanguage(language: Language): void {
+        this.language = language;
+    }
+
+    /**
      * Get comprehensive information for a specific Ethiopian date
      */
     getDayInformation(ethiopianDate: KenatDate): DayInformation {
