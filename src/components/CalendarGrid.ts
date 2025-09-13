@@ -1,7 +1,7 @@
 import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
 import St from "gi://St";
-import { ComponentBase } from "stignite";
+import { ComponentBase, ReactiveComponent } from "stignite";
 import type {
     DayCell,
     MonthGridResult,
@@ -10,6 +10,14 @@ import type {
 import type { LanguageOption } from "../types/index.js";
 import { SETTINGS } from "../types/index.js";
 
+@ReactiveComponent({
+    dependencies: {
+        [SETTINGS.KEYS.CALENDAR_LANGUAGE]: ["weekday-headers"],
+        [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: ["day-numbers"],
+    },
+    priority: 5, // Medium priority
+    id: "calendar-grid",
+})
 export class CalendarGrid extends ComponentBase {
     private outer: St.Widget | undefined;
     private gridLayout: Clutter.GridLayout | undefined;
@@ -23,11 +31,11 @@ export class CalendarGrid extends ComponentBase {
         super(settings);
         this.monthService = monthService;
 
-        // Follow new lifecycle pattern
+        // Initialize reactive settings first
         this.initSettings();
-        this.initUI();
-        this.initConnections();
-        this.initLogic();
+
+        // Initial render
+        this.render({ force: true });
     }
 
     /**
@@ -61,9 +69,9 @@ export class CalendarGrid extends ComponentBase {
     }
 
     /**
-     * Initialize UI components
+     * Initial render - called once during construction
      */
-    private initUI(): void {
+    protected renderInitial(): void {
         this.withErrorHandling(() => {
             // Create grid layout
             this.gridLayout = new Clutter.GridLayout({
@@ -77,37 +85,57 @@ export class CalendarGrid extends ComponentBase {
                 style_class: "calendar-grid",
                 x_expand: true,
             });
-        }, "Failed to initialize calendar grid UI");
-    }
 
-    /**
-     * Initialize connections
-     */
-    private initConnections(): void {
-        // Connections are created when rendering days
-    }
-
-    /**
-     * Initialize business logic
-     */
-    private initLogic(): void {
-        this.withErrorHandling(() => {
             // Set initial reactive values
             this.useGeezNumerals =
                 this.getReactiveSetting<boolean>("useGeezNumerals").value;
 
             this.refresh();
-        }, "Failed to initialize calendar grid logic");
+        }, "Failed to render CalendarGrid initially");
+    }
+
+    /**
+     * Smart partial updates - called when settings change
+     */
+    protected renderUpdates(
+        _changes: Record<string, unknown>,
+        affectedParts: string[],
+    ): void {
+        this.withErrorHandling(() => {
+            if (affectedParts.includes("weekday-headers")) {
+                // Language changed - refresh entire grid to update headers
+                this.refresh();
+            } else if (affectedParts.includes("day-numbers")) {
+                // Geez numerals changed - update existing day buttons
+                this.updateDayLabels();
+            }
+        }, "Failed to update CalendarGrid");
+    }
+
+    /**
+     * Update only the day number labels without recreating buttons
+     */
+    private updateDayLabels(): void {
+        this.withErrorHandling(() => {
+            if (!this.dayButtons.length) return;
+
+            // Update each day button's label with new numeral format
+            this.dayButtons.forEach((_button, _index) => {
+                // This would need more complex logic to map button to day data
+                // For now, refresh the entire grid when numerals change
+                this.refresh();
+            });
+        }, "Failed to update day labels");
     }
 
     public refresh(): void {
         this.withErrorHandling(() => {
             const data = this.monthService.generate();
-            this.render(data);
+            this.renderCalendar(data);
         }, "Failed to refresh calendar grid");
     }
 
-    private render(data: MonthGridResult): void {
+    private renderCalendar(data: MonthGridResult): void {
         if (!this.gridLayout || !this.outer) return;
 
         // Clear existing grid

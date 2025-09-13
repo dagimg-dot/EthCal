@@ -1,7 +1,7 @@
 import St from "gi://St";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "kenat";
-import { ComponentBase, type ExtensionBase } from "stignite";
+import { ComponentBase, type ExtensionBase, ReactiveComponent } from "stignite";
 import type { KenatDate } from "../services/dayInfoService.js";
 import { MonthGridService } from "../services/monthGrid.js";
 import type { LanguageOption } from "../types/index.js";
@@ -11,6 +11,14 @@ import { CalendarGrid } from "./CalendarGrid.js";
 import { CalendarMonthHeader } from "./CalendarMonthHeader.js";
 import { CalendarTopHeader } from "./CalendarTopHeader.js";
 
+@ReactiveComponent({
+    dependencies: {
+        [SETTINGS.KEYS.CALENDAR_LANGUAGE]: ["month-service", "all-children"],
+        [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: ["month-service", "all-children"],
+    },
+    priority: 8, // High priority as it coordinates children
+    id: "calendar-popup",
+})
 export class CalendarPopup extends ComponentBase {
     // Main popup structure
     private item: PopupMenu.PopupBaseMenuItem | undefined;
@@ -33,11 +41,11 @@ export class CalendarPopup extends ComponentBase {
         super(extension.getSettings());
         this.extension = extension;
 
-        // Follow new lifecycle pattern
+        // Initialize reactive settings first
         this.initSettings();
-        this.initUI();
-        this.initConnections();
-        this.initLogic();
+
+        // Initial render
+        this.render({ force: true });
     }
 
     /**
@@ -76,39 +84,24 @@ export class CalendarPopup extends ComponentBase {
     }
 
     /**
-     * Initialize UI components
+     * Initial render - called once during construction
      */
-    private initUI(): void {
+    protected renderInitial(): void {
         this.withErrorHandling(() => {
-            // Create main popup item
+            // Create UI components (old initUI logic)
             this.item = new PopupMenu.PopupBaseMenuItem({
                 reactive: false,
                 can_focus: false,
             });
 
-            // Create main container
             this.outer = new St.BoxLayout({
                 vertical: true,
                 style_class: "calendar-popup",
             });
 
             this.item.add_child(this.outer);
-        }, "Failed to initialize calendar popup UI");
-    }
 
-    /**
-     * Initialize connections (no initial connections needed)
-     */
-    private initConnections(): void {
-        // Connections are established when creating sub-components
-    }
-
-    /**
-     * Initialize business logic and sub-components
-     */
-    private initLogic(): void {
-        this.withErrorHandling(() => {
-            // Get reactive setting values (they're already initialized)
+            // Initialize services with current settings
             const language =
                 this.getReactiveSetting<LanguageOption>(
                     "calendarLanguage",
@@ -127,7 +120,48 @@ export class CalendarPopup extends ComponentBase {
 
             // Initial refresh
             this.refresh();
-        }, "Failed to initialize calendar popup logic");
+        }, "Failed to render CalendarPopup initially");
+    }
+
+    /**
+     * Smart partial updates - called when settings change
+     */
+    protected renderUpdates(
+        changes: Record<string, unknown>,
+        affectedParts: string[],
+    ): void {
+        this.withErrorHandling(() => {
+            if (affectedParts.includes("month-service")) {
+                // Update month service with new language/geez settings
+                if (changes[SETTINGS.KEYS.CALENDAR_LANGUAGE]) {
+                    const newLanguage = changes[
+                        SETTINGS.KEYS.CALENDAR_LANGUAGE
+                    ] as LanguageOption;
+                    if (this.monthService) {
+                        this.monthService.weekdayLang = newLanguage;
+                        this.refreshMonthHeader();
+                    }
+                }
+
+                if (changes[SETTINGS.KEYS.USE_GEEZ_NUMERALS]) {
+                    const newGeez = changes[
+                        SETTINGS.KEYS.USE_GEEZ_NUMERALS
+                    ] as boolean;
+                    if (this.monthService) {
+                        this.monthService.useGeez = newGeez;
+                        this.refreshMonthHeader();
+                    }
+                }
+            }
+
+            if (affectedParts.includes("all-children")) {
+                // Propagate changes to all child components
+                this.topHeader?.render({ changes, affectedParts });
+                this.monthHeader?.render({ changes, affectedParts });
+                this.grid?.render({ changes, affectedParts });
+                this.eventsSection?.render({ changes, affectedParts });
+            }
+        }, "Failed to update CalendarPopup");
     }
 
     private createSubComponents(): void {

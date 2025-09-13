@@ -1,8 +1,16 @@
 import type Gio from "gi://Gio";
 import St from "gi://St";
-import { ComponentBase } from "stignite";
+import { ComponentBase, ReactiveComponent } from "stignite";
 import { SETTINGS } from "../types/index.js";
 
+@ReactiveComponent({
+    dependencies: {
+        [SETTINGS.KEYS.CALENDAR_LANGUAGE]: ["month-name"],
+        [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: ["year-number"],
+    },
+    priority: 3, // Lower priority
+    id: "calendar-month-header",
+})
 export class CalendarMonthHeader extends ComponentBase {
     private outer: St.BoxLayout | undefined;
     private prevBtn: St.Button | undefined;
@@ -24,11 +32,11 @@ export class CalendarMonthHeader extends ComponentBase {
         this.onNextClick = onNextClick;
         this.onLanguageChange = onLanguageChange;
 
-        // Follow new lifecycle pattern
+        // Initialize reactive settings first
         this.initSettings();
-        this.initUI();
-        this.initConnections();
-        this.initLogic();
+
+        // Initial render
+        this.render({ force: true });
     }
 
     /**
@@ -65,9 +73,9 @@ export class CalendarMonthHeader extends ComponentBase {
     }
 
     /**
-     * Initialize UI components
+     * Initial render - called once during construction
      */
-    private initUI(): void {
+    protected renderInitial(): void {
         this.withErrorHandling(() => {
             // Create main container
             this.outer = new St.BoxLayout({
@@ -77,14 +85,8 @@ export class CalendarMonthHeader extends ComponentBase {
 
             this.createNavigationButtons();
             this.createTitleLabel();
-        }, "Failed to initialize month header UI");
-    }
 
-    /**
-     * Initialize connections
-     */
-    private initConnections(): void {
-        this.withErrorHandling(() => {
+            // Connect button events
             if (this.prevBtn) {
                 this.prevBtn.connect("clicked", () => {
                     this.emit("prev-clicked");
@@ -98,14 +100,27 @@ export class CalendarMonthHeader extends ComponentBase {
                     this.onNextClick?.();
                 });
             }
-        }, "Failed to initialize month header connections");
+        }, "Failed to render CalendarMonthHeader initially");
     }
 
     /**
-     * Initialize business logic
+     * Smart partial updates - called when settings change
      */
-    private initLogic(): void {
-        // No initial logic needed
+    protected renderUpdates(
+        _changes: Record<string, unknown>,
+        affectedParts: string[],
+    ): void {
+        this.withErrorHandling(() => {
+            if (
+                affectedParts.includes("month-name") ||
+                affectedParts.includes("year-number")
+            ) {
+                // Update the title when language or geez numerals change
+                if (this.onLanguageChange) {
+                    this.onLanguageChange();
+                }
+            }
+        }, "Failed to update CalendarMonthHeader");
     }
 
     private createNavigationButtons(): void {

@@ -18,6 +18,35 @@ export type EventData =
 // biome-ignore lint/suspicious/noExplicitAny: allow any for wrapper type
 type ReactiveSettingWrapper = ReactiveSetting<any> | ReactiveComputed<any>;
 
+// Dependency graph types for smart updates
+export type ComponentId = string;
+export type SettingKey = string;
+export type ComponentPart = string;
+
+export interface ComponentDependencies {
+    [settingKey: string]: ComponentPart[];
+}
+
+export interface ComponentUpdateInfo {
+    componentId: ComponentId;
+    affectedParts: ComponentPart[];
+    changes: Record<SettingKey, unknown>;
+    priority: number;
+}
+
+export interface RenderOptions {
+    changes?: Record<SettingKey, unknown>;
+    affectedParts?: ComponentPart[];
+    force?: boolean;
+    priority?: number;
+}
+
+export interface ReactiveComponentConfig {
+    dependencies: ComponentDependencies;
+    priority?: number;
+    id?: ComponentId;
+}
+
 /**
  * Component Base with Unified Reactive API
  *
@@ -34,6 +63,12 @@ export abstract class ComponentBase {
     protected settings: Gio.Settings;
     protected cleanup: (() => void)[] = [];
     private _reactiveSettings = new Map<string, ReactiveSettingWrapper>();
+
+    // Dependency graph properties
+    public componentId: ComponentId = "";
+    public dependencies: ComponentDependencies = {};
+    public updatePriority: number = 0;
+    protected rendered = false;
 
     /**
      * Get reactive setting by name with proper typing
@@ -201,10 +236,64 @@ export abstract class ComponentBase {
     }
 
     /**
+     * Smart render method - override in subclasses
+     */
+    render(options: RenderOptions = {}): void {
+        const { force = false, changes = {}, affectedParts = [] } = options;
+
+        // Default implementation - can be overridden
+        if (!this.rendered || force) {
+            this.renderInitial();
+            this.rendered = true;
+        }
+
+        // Handle smart partial updates if implemented
+        if (Object.keys(changes).length > 0 || affectedParts.length > 0) {
+            this.renderUpdates(changes, affectedParts);
+        }
+    }
+
+    /**
+     * Initial render - called once
+     */
+    protected renderInitial(): void {
+        // Override in subclasses
+    }
+
+    /**
+     * Smart partial updates - called on setting changes
+     */
+    protected renderUpdates(
+        _changes: Record<SettingKey, unknown>,
+        _affectedParts: ComponentPart[],
+    ): void {
+        // Override in subclasses for smart updates
+    }
+
+    /**
+     * Register component with update orchestrator
+     */
+    protected registerWithOrchestrator(): void {
+        if (this.dependencies && Object.keys(this.dependencies).length > 0) {
+            UpdateOrchestrator.getInstance().registerComponent(this);
+        }
+    }
+
+    /**
+     * Get affected parts for a setting change
+     */
+    public getAffectedParts(settingKey: SettingKey): ComponentPart[] {
+        return this.dependencies[settingKey] || [];
+    }
+
+    /**
      * Destroy component and clean up all resources
      * Override this in subclasses for custom cleanup
      */
     destroy(): void {
+        // Unregister from orchestrator
+        UpdateOrchestrator.getInstance().unregisterComponent(this.componentId);
+
         // Clean up reactive settings
         this._reactiveSettings.clear();
 
@@ -218,4 +307,128 @@ export abstract class ComponentBase {
         });
         this.cleanup = [];
     }
+}
+
+// Update Orchestrator - Singleton for managing component updates
+export class UpdateOrchestrator {
+    private static instance: UpdateOrchestrator;
+    private componentRegistry = new Map<ComponentId, ComponentBase>();
+    private dependencyGraph = new Map<SettingKey, Set<ComponentId>>();
+    private updateQueue: ComponentUpdateInfo[] = [];
+    private isProcessing = false;
+
+    static getInstance(): UpdateOrchestrator {
+        if (!UpdateOrchestrator.instance) {
+            UpdateOrchestrator.instance = new UpdateOrchestrator();
+        }
+        return UpdateOrchestrator.instance;
+    }
+
+    registerComponent(component: ComponentBase): void {
+        if (!component.componentId) {
+            component.componentId = `component-${Date.now()}-${Math.random()}`;
+        }
+
+        this.componentRegistry.set(component.componentId, component);
+
+        // Register dependencies
+        Object.keys(component.dependencies).forEach((settingKey) => {
+            if (!this.dependencyGraph.has(settingKey)) {
+                this.dependencyGraph.set(settingKey, new Set());
+            }
+            this.dependencyGraph.get(settingKey)?.add(component.componentId);
+        });
+    }
+
+    unregisterComponent(componentId: ComponentId): void {
+        this.componentRegistry.delete(componentId);
+
+        // Remove from dependency graph
+        this.dependencyGraph.forEach((componentSet) => {
+            componentSet.delete(componentId);
+        });
+    }
+
+    notifySettingChanged(settingKey: SettingKey, newValue: unknown): void {
+        const affectedComponents = this.dependencyGraph.get(settingKey);
+
+        if (!affectedComponents || affectedComponents.size === 0) {
+            return;
+        }
+
+        // Create update info for each affected component
+        affectedComponents.forEach((componentId) => {
+            const component = this.componentRegistry.get(componentId);
+            if (component) {
+                const affectedParts = component.getAffectedParts(settingKey);
+                const updateInfo: ComponentUpdateInfo = {
+                    componentId,
+                    affectedParts,
+                    changes: { [settingKey]: newValue },
+                    priority: component.updatePriority,
+                };
+                this.updateQueue.push(updateInfo);
+            }
+        });
+
+        // Process updates
+        this.processUpdateQueue();
+    }
+
+    private async processUpdateQueue(): Promise<void> {
+        if (this.isProcessing || this.updateQueue.length === 0) {
+            return;
+        }
+
+        this.isProcessing = true;
+
+        // Sort by priority (higher priority first)
+        this.updateQueue.sort((a, b) => b.priority - a.priority);
+
+        const currentBatch = [...this.updateQueue];
+        this.updateQueue = [];
+
+        // Process batch
+        for (const updateInfo of currentBatch) {
+            const component = this.componentRegistry.get(
+                updateInfo.componentId,
+            );
+            if (component) {
+                try {
+                    component.render({
+                        changes: updateInfo.changes,
+                        affectedParts: updateInfo.affectedParts,
+                        priority: updateInfo.priority,
+                    });
+                } catch (error) {
+                    logger(
+                        `Error updating component ${updateInfo.componentId}: ${error}`,
+                    );
+                }
+            }
+        }
+
+        this.isProcessing = false;
+    }
+}
+
+// Reactive Component Decorator
+export function ReactiveComponent(config: ReactiveComponentConfig) {
+    // biome-ignore lint/suspicious/noExplicitAny: allow the decorator to work with any component
+    return <T extends { new (...args: any[]): ComponentBase }>(target: T) =>
+        class extends target {
+            // biome-ignore lint/suspicious/noExplicitAny: allow the constructor to work with any arguments
+            constructor(...args: any[]) {
+                super(...args);
+
+                // Set component properties from config
+                this.componentId =
+                    config.id || `component-${Date.now()}-${Math.random()}`;
+                this.dependencies = config.dependencies;
+                this.updatePriority = config.priority || 0;
+
+                // Register with orchestrator after construction
+                this.registerWithOrchestrator();
+            }
+        };
 }

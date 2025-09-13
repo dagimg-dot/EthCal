@@ -3,12 +3,20 @@ import type Gio from "gi://Gio";
 import Pango from "gi://Pango";
 import St from "gi://St";
 import Kenat from "kenat";
-import { ComponentBase } from "stignite";
+import { ComponentBase, ReactiveComponent } from "stignite";
 import type { KenatDate } from "../services/dayInfoService.js";
 import { createDayInfoService } from "../services/dayInfoService.js";
 import type { LanguageOption } from "../types/index.js";
 import { SETTINGS } from "../types/index.js";
 
+@ReactiveComponent({
+    dependencies: {
+        [SETTINGS.KEYS.CALENDAR_LANGUAGE]: ["event-titles", "holiday-names"],
+        [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: ["date-titles"],
+    },
+    priority: 2, // Lowest priority
+    id: "calendar-events-section",
+})
 export class CalendarEventsSection extends ComponentBase {
     private outer: St.BoxLayout | undefined;
     private titleLabel: St.Label | undefined;
@@ -18,11 +26,11 @@ export class CalendarEventsSection extends ComponentBase {
     constructor(settings: Gio.Settings) {
         super(settings);
 
-        // Follow new lifecycle pattern
+        // Initialize reactive settings first
         this.initSettings();
-        this.initUI();
-        this.initConnections();
-        this.initLogic();
+
+        // Initial render
+        this.render({ force: true });
     }
 
     /**
@@ -60,9 +68,9 @@ export class CalendarEventsSection extends ComponentBase {
     }
 
     /**
-     * Initialize UI components
+     * Initial render - called once during construction
      */
-    private initUI(): void {
+    protected renderInitial(): void {
         this.withErrorHandling(() => {
             // Create main container
             this.outer = new St.BoxLayout({
@@ -72,28 +80,33 @@ export class CalendarEventsSection extends ComponentBase {
 
             this.createTitleSection();
             this.createEventsList();
-        }, "Failed to initialize events section UI");
-    }
 
-    /**
-     * Initialize connections
-     */
-    private initConnections(): void {
-        // No initial connections needed
-    }
-
-    /**
-     * Initialize business logic
-     */
-    private initLogic(): void {
-        this.withErrorHandling(() => {
-            // Get reactive setting values (already initialized)
+            // Initialize services
             const language =
                 this.getReactiveSetting<LanguageOption>(
                     "calendarLanguage",
                 ).value;
             this.dayInfoService = createDayInfoService(language);
-        }, "Failed to initialize events section logic");
+        }, "Failed to render CalendarEventsSection initially");
+    }
+
+    /**
+     * Smart partial updates - called when settings change
+     */
+    protected renderUpdates(
+        _changes: Record<string, unknown>,
+        affectedParts: string[],
+    ): void {
+        this.withErrorHandling(() => {
+            if (
+                affectedParts.includes("event-titles") ||
+                affectedParts.includes("holiday-names") ||
+                affectedParts.includes("date-titles")
+            ) {
+                // Refresh display when language or geez numerals change
+                this.refreshDisplay();
+            }
+        }, "Failed to update CalendarEventsSection");
     }
 
     private createTitleSection(): void {

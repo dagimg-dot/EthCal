@@ -7,6 +7,7 @@ import Kenat from "kenat";
 import {
     ComponentBase,
     type ExtensionBase,
+    ReactiveComponent,
     type ReactiveComputed,
     type ReactiveSetting,
 } from "stignite";
@@ -40,6 +41,17 @@ interface TimeDisplaySettings {
     language: LanguageOption;
 }
 
+@ReactiveComponent({
+    dependencies: {
+        [SETTINGS.KEYS.STATUS_BAR_POSITION]: ["panel-position"],
+        [SETTINGS.KEYS.STATUS_BAR_FORMAT]: ["time-display"],
+        [SETTINGS.KEYS.STATUS_BAR_CUSTOM_FORMAT]: ["time-display"],
+        [SETTINGS.KEYS.CALENDAR_LANGUAGE]: ["date-formatter", "calendar-popup"],
+        [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: ["date-formatter", "calendar-popup"],
+    },
+    priority: 10, // High priority as it's the main UI component
+    id: "status-bar-indicator",
+})
 export class StatusBarIndicator extends ComponentBase {
     private _indicator: PanelMenu.Button | undefined;
     private _label: St.Label | undefined;
@@ -59,11 +71,11 @@ export class StatusBarIndicator extends ComponentBase {
 
         this.extension = extension;
 
-        // Enforced lifecycle order
+        // Initialize reactive settings first
         this.initSettings();
-        this.initUI();
-        this.initConnections();
-        this.initLogic();
+
+        // Initial render
+        this.render({ force: true });
     }
 
     private initSettings(): void {
@@ -72,7 +84,7 @@ export class StatusBarIndicator extends ComponentBase {
                 "position",
                 SETTINGS.KEYS.STATUS_BAR_POSITION,
                 SETTINGS.DEFAULTS.POSITION,
-                (newPosition) => this.onIndicatorPositionChange(newPosition),
+                () => {}, // No-op - handled by render system
             ) as ReactiveSetting<PositionOption>;
 
             this.timeDisplaySettings = this.addReactiveSetting(
@@ -89,31 +101,17 @@ export class StatusBarIndicator extends ComponentBase {
                     useGeezNumerals: SETTINGS.DEFAULTS.GEEZ_NUMERALS,
                     language: SETTINGS.DEFAULTS.LANGUAGE,
                 },
-                (settings) => this.onTimeDisplayChange(settings),
+                () => {}, // No-op - handled by render system
             ) as ReactiveComputed<TimeDisplaySettings>;
         }, "Failed to initialize reactive settings");
     }
 
-    private initLogic(): void {
+    /**
+     * Initial render - called once during construction
+     */
+    protected renderInitial(): void {
         this.withErrorHandling(() => {
-            this.dateFormatter = createDateFormatterService({
-                language: this.timeDisplaySettings.value.language,
-                useGeezNumerals: this.timeDisplaySettings.value.useGeezNumerals,
-            });
-
-            // Initial position, time display and timer
-            this.onIndicatorPositionChange(this.indicatorPosition.value);
-
-            this.onTimeDisplayChange(this.timeDisplaySettings.value);
-
-            this.addTimer(() => {
-                this.onTimeDisplayChange(this.timeDisplaySettings.value);
-            }, this.timeout * 1000);
-        }, "Failed to initialize logic");
-    }
-
-    private initUI(): void {
-        this.withErrorHandling(() => {
+            // Create UI components
             this._indicator = new PanelMenu.Button(
                 0.5,
                 "Ethiopian Calendar",
@@ -126,49 +124,72 @@ export class StatusBarIndicator extends ComponentBase {
 
             this._indicator.add_child(this._label);
 
-            // Initialize child components (CalendarPopup)
-            this.initChildren();
-        }, "Failed to initialize UI");
-    }
-
-    private initChildren(): void {
-        this.withErrorHandling(() => {
-            if (!this._indicator) return;
-
-            // Create CalendarPopup component
+            // Create child components
             this._calendarPopup = new CalendarPopup(this.extension);
 
             const popupMenu = this._indicator.menu as PopupMenu.PopupMenu;
             popupMenu.addMenuItem(this._calendarPopup.getItem());
 
-            // Register the menu with GNOME Shell's popup menu manager for proper focus handling
+            // Register the menu with GNOME Shell
             (
                 Main.panel as unknown as MainPanelWithManager
             ).menuManager?.addMenu(popupMenu, 1);
-        }, "Failed to initialize children");
-    }
 
-    /**
-     * Initialize signal connections and event handlers
-     */
-    private initConnections(): void {
-        this.withErrorHandling(() => {
-            if (!this._indicator || !this._calendarPopup) return;
-
-            // Connect reset function to popup show event
-            const menu = this._indicator.menu as PopupMenu.PopupMenu;
-            menu.actor.connect("show", () => {
+            // Connect popup show event
+            popupMenu.actor.connect("show", () => {
                 this._calendarPopup?.resetToCurrentMonth();
             });
-        }, "Failed to initialize connections");
+
+            // Initialize services
+            this.dateFormatter = createDateFormatterService({
+                language: this.timeDisplaySettings.value.language,
+                useGeezNumerals: this.timeDisplaySettings.value.useGeezNumerals,
+            });
+
+            // Set initial state
+            this.updatePanelPosition();
+            this.updateTimeDisplay();
+
+            // Start time update timer
+            this.addTimer(() => {
+                this.updateTimeDisplay();
+            }, this.timeout * 1000);
+        }, "Failed to render StatusBarIndicator initially");
     }
 
     /**
-     * Handle indicator position changes
+     * Smart partial updates - called when settings change
      */
-    private onIndicatorPositionChange(newPosition: PositionOption): void {
+    protected renderUpdates(
+        changes: Record<string, unknown>,
+        affectedParts: string[],
+    ): void {
+        this.withErrorHandling(() => {
+            if (affectedParts.includes("panel-position")) {
+                this.updatePanelPosition();
+            }
+
+            if (
+                affectedParts.includes("time-display") ||
+                affectedParts.includes("date-formatter")
+            ) {
+                this.updateTimeDisplay();
+            }
+
+            if (affectedParts.includes("calendar-popup")) {
+                // CalendarPopup will handle its own updates
+                this._calendarPopup?.render({ changes, affectedParts });
+            }
+        }, "Failed to update StatusBarIndicator");
+    }
+
+    /**
+     * Update panel position in GNOME Shell
+     */
+    private updatePanelPosition(): void {
         this.withErrorHandling(() => {
             if (!this._indicator) return;
+
             // Remove from current position first
             this.removeFromAllPanelPositions();
 
@@ -178,38 +199,43 @@ export class StatusBarIndicator extends ComponentBase {
                 right: "_rightBox",
             } as const;
 
-            const method = methodMap[newPosition];
+            const method = methodMap[this.indicatorPosition.value];
 
             if (method) {
                 (Main.panel as unknown as MainPanel)[
                     method as keyof MainPanel
                 ]?.insert_child_at_index(this._indicator.container, 1);
             }
-        }, "Failed to update indicator position");
+        }, "Failed to update panel position");
     }
 
     /**
-     * Handle time display settings changes
+     * Update time display in status bar
      */
-    private onTimeDisplayChange(settings: TimeDisplaySettings): void {
+    private updateTimeDisplay(): void {
         this.withErrorHandling(() => {
             if (!this._label || !this.dateFormatter) return;
+
             // Update date formatter options with new settings
             this.dateFormatter.updateOptions({
-                language: settings.language,
-                useGeezNumerals: settings.useGeezNumerals,
+                language: this.timeDisplaySettings.value.language,
+                useGeezNumerals: this.timeDisplaySettings.value.useGeezNumerals,
             });
 
-            const formattedTime = this.getCurrentDateAndTime(settings);
+            const formattedTime = this.getCurrentDateAndTime();
             this._label.text = formattedTime;
         }, "Failed to update time display");
     }
 
-    private getCurrentDateAndTime(settings: TimeDisplaySettings): string {
+    /**
+     * Get current date and time formatted
+     */
+    private getCurrentDateAndTime(): string {
         return this.withErrorHandling(() => {
             if (!this.dateFormatter) return "";
 
             const kenat = new Kenat();
+            const settings = this.timeDisplaySettings.value;
 
             // Use custom format if selected, otherwise use predefined formats
             if (settings.format === "custom") {

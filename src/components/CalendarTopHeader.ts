@@ -1,9 +1,17 @@
 import St from "gi://St";
 import Kenat from "kenat";
-import { ComponentBase, type ExtensionBase } from "stignite";
+import { ComponentBase, type ExtensionBase, ReactiveComponent } from "stignite";
 import type { LanguageOption } from "../types/index.js";
 import { SETTINGS } from "../types/index.js";
 
+@ReactiveComponent({
+    dependencies: {
+        [SETTINGS.KEYS.CALENDAR_LANGUAGE]: ["weekday-title", "date-title"],
+        [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: ["date-title"],
+    },
+    priority: 4, // Medium priority
+    id: "calendar-top-header",
+})
 export class CalendarTopHeader extends ComponentBase {
     private outer: St.BoxLayout | undefined;
     private weekdayTitle: St.Label | undefined;
@@ -15,11 +23,11 @@ export class CalendarTopHeader extends ComponentBase {
         super(extension.getSettings());
         this.extension = extension;
 
-        // Follow new lifecycle pattern
+        // Initialize reactive settings first
         this.initSettings();
-        this.initUI();
-        this.initConnections();
-        this.initLogic();
+
+        // Initial render
+        this.render({ force: true });
     }
 
     /**
@@ -52,9 +60,9 @@ export class CalendarTopHeader extends ComponentBase {
     }
 
     /**
-     * Initialize UI components
+     * Initial render - called once during construction
      */
-    private initUI(): void {
+    protected renderInitial(): void {
         this.withErrorHandling(() => {
             // Create main container
             this.outer = new St.BoxLayout({
@@ -64,23 +72,27 @@ export class CalendarTopHeader extends ComponentBase {
 
             this.createTopRow();
             this.createDateRow();
-        }, "Failed to initialize top header UI");
-    }
 
-    /**
-     * Initialize connections
-     */
-    private initConnections(): void {
-        // Settings button connection will be handled in createTopRow
-    }
-
-    /**
-     * Initialize business logic
-     */
-    private initLogic(): void {
-        this.withErrorHandling(() => {
+            // Initial display update
             this.updateDisplay();
-        }, "Failed to initialize top header logic");
+        }, "Failed to render CalendarTopHeader initially");
+    }
+
+    /**
+     * Smart partial updates - called when settings change
+     */
+    protected renderUpdates(
+        _changes: Record<string, unknown>,
+        affectedParts: string[],
+    ): void {
+        this.withErrorHandling(() => {
+            if (
+                affectedParts.includes("weekday-title") ||
+                affectedParts.includes("date-title")
+            ) {
+                this.updateDisplay();
+            }
+        }, "Failed to update CalendarTopHeader");
     }
 
     private createTopRow(): void {
