@@ -112,6 +112,8 @@ export class CalendarEventsSection extends ComponentBase {
             vertical: true,
             style_class: "calendar-events-list",
         });
+
+        this.outer.add_child(this.eventsList);
     }
 
     public updateEvents(date: KenatDate): void {
