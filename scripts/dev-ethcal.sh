@@ -2,7 +2,7 @@
 set -euo pipefail
 
 MOUNT_POINT="/mnt/host/ethcal"
-HOST_SPEC="jd@192.168.0.221:/home/jd/JDrive/Projects/TYPESCRIPT/gnome-extensions/EthCal"
+HOST_SPEC="jd@10.69.26.170:/home/jd/JDrive/Projects/TYPESCRIPT/gnome-extensions/EthCal"
 
 mkdir -p "$MOUNT_POINT"
 

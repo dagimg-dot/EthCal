@@ -3,7 +3,7 @@
 import * as esbuild from "esbuild";
 
 esbuild.build({
-    entryPoints: ["src/extension.ts", "src/prefs.ts"],
+    entryPoints: ["src/**/*.ts"],
     outdir: "dist/",
     platform: "neutral",
     format: "esm",
