@@ -1,12 +1,12 @@
 import type Gio from "gi://Gio";
 import type { ExtensionMetadata } from "resource:///org/gnome/shell/extensions/extension.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
-import { logger } from "src/utils/logger.js";
 import type { ComponentBase } from "./ComponentBase.js";
 import { UpdateOrchestrator } from "./ReactiveBase.js";
 import type {
     ExtensionConfig,
     InferSettingValue,
+    Logger,
     SettingSchema,
 } from "./types.js";
 
@@ -16,6 +16,7 @@ import type {
 export abstract class ExtensionBase extends Extension {
     protected readonly settings: Gio.Settings;
     protected readonly settingSchema: SettingSchema;
+    protected readonly logger: Logger;
     private components: ComponentBase[] = [];
     private cleanup: (() => void)[] = [];
     private orchestrator: UpdateOrchestrator;
@@ -23,6 +24,7 @@ export abstract class ExtensionBase extends Extension {
     constructor(metadata: ExtensionMetadata, config: ExtensionConfig) {
         super(metadata);
         this.settingSchema = config.settingSchema;
+        this.logger = config.logger ?? console.log;
         this.settings = this.getSettings();
         this.orchestrator = UpdateOrchestrator.getInstance();
 
@@ -103,7 +105,7 @@ export abstract class ExtensionBase extends Extension {
                     );
             }
         } catch (error) {
-            logger(`Error getting setting '${String(key)}': ${error}`);
+            this.logger(`Error getting setting '${String(key)}': ${error}`);
             return settingDef.default as InferSettingValue<SettingSchema, K>;
         }
     }
@@ -117,7 +119,9 @@ export abstract class ExtensionBase extends Extension {
             try {
                 const settingDef = this.settingSchema[key];
                 if (!settingDef) {
-                    logger(`Warning: Setting '${key}' not defined in schema`);
+                    this.logger(
+                        `Warning: Setting '${key}' not defined in schema`,
+                    );
                     return;
                 }
 
@@ -135,7 +139,7 @@ export abstract class ExtensionBase extends Extension {
                         value = settings.get_boolean(key);
                         break;
                     default:
-                        logger(
+                        this.logger(
                             `Error: Unknown setting type '${settingDef.type}' for key '${key}'`,
                         );
                         return;
@@ -145,7 +149,9 @@ export abstract class ExtensionBase extends Extension {
                     this.orchestrator.notifySettingChanged(key, value);
                 }
             } catch (error) {
-                logger(`Error monitoring setting change for ${key}: ${error}`);
+                this.logger(
+                    `Error monitoring setting change for ${key}: ${error}`,
+                );
             }
         });
 
@@ -157,7 +163,7 @@ export abstract class ExtensionBase extends Extension {
      */
     destroy(): void {
         // Destroy all components
-        logger("Destroying extension and all components");
+        this.logger("Destroying extension and all components");
         this.components.forEach((component) => component.destroy());
         this.components = [];
 

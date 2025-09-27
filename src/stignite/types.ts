@@ -53,11 +53,18 @@ export interface SettingSchema {
 }
 
 /**
+ * Logger interface for stignite
+ */
+export type Logger = (message: string) => void;
+
+/**
  * Extension configuration for stignite
  */
 export interface ExtensionConfig {
     /** Schema defining all settings and their types */
     settingSchema: SettingSchema;
+    /** Optional logger function, defaults to console.log */
+    logger?: Logger;
 }
 
 /**

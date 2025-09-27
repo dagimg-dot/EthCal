@@ -2,6 +2,7 @@ import type { ExtensionMetadata } from "resource:///org/gnome/shell/extensions/e
 import { ExtensionBase } from "stignite";
 import { StatusBarIndicator } from "./components/StatusBarIndicator.js";
 import { SETTINGS } from "./types/index.js";
+import { logger } from "./utils/logger.js";
 
 export default class EthCal extends ExtensionBase {
     private _statusBarIndicator: StatusBarIndicator | undefined;
@@ -31,7 +32,7 @@ export default class EthCal extends ExtensionBase {
             },
         };
 
-        super(metadata, { settingSchema });
+        super(metadata, { settingSchema, logger });
     }
 
     enable(): void {
