@@ -4,18 +4,25 @@ import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import { logger } from "src/utils/logger.js";
 import type { ComponentBase } from "./ComponentBase.js";
 import { UpdateOrchestrator } from "./ReactiveBase.js";
+import type {
+    ExtensionConfig,
+    InferSettingValue,
+    SettingSchema,
+} from "./types.js";
 
 /**
  * Base class
  */
 export abstract class ExtensionBase extends Extension {
     protected readonly settings: Gio.Settings;
+    protected readonly settingSchema: SettingSchema;
     private components: ComponentBase[] = [];
     private cleanup: (() => void)[] = [];
     private orchestrator: UpdateOrchestrator;
 
-    constructor(metadata: ExtensionMetadata) {
+    constructor(metadata: ExtensionMetadata, config: ExtensionConfig) {
         super(metadata);
+        this.settingSchema = config.settingSchema;
         this.settings = this.getSettings();
         this.orchestrator = UpdateOrchestrator.getInstance();
 
@@ -66,34 +73,72 @@ export abstract class ExtensionBase extends Extension {
     }
 
     /**
+     * Get a typed setting value using the schema
+     */
+    protected getSetting<K extends keyof SettingSchema>(
+        key: K,
+    ): InferSettingValue<SettingSchema, K> {
+        const settingDef = this.settingSchema[key];
+        if (!settingDef) {
+            throw new Error(`Setting '${String(key)}' not defined in schema`);
+        }
+
+        try {
+            switch (settingDef.type) {
+                case "string":
+                    return this.settings.get_string(
+                        key as string,
+                    ) as InferSettingValue<SettingSchema, K>;
+                case "int":
+                    return this.settings.get_int(
+                        key as string,
+                    ) as InferSettingValue<SettingSchema, K>;
+                case "boolean":
+                    return this.settings.get_boolean(
+                        key as string,
+                    ) as InferSettingValue<SettingSchema, K>;
+                default:
+                    throw new Error(
+                        `Unknown setting type '${settingDef.type}' for key '${String(key)}'`,
+                    );
+            }
+        } catch (error) {
+            logger(`Error getting setting '${String(key)}': ${error}`);
+            return settingDef.default as InferSettingValue<SettingSchema, K>;
+        }
+    }
+
+    /**
      * Set up global setting change monitoring
      */
     private setupSettingMonitoring(): void {
         // Listen to all setting changes and notify orchestrator
         const handlerId = this.settings.connect("changed", (settings, key) => {
             try {
+                const settingDef = this.settingSchema[key];
+                if (!settingDef) {
+                    logger(`Warning: Setting '${key}' not defined in schema`);
+                    return;
+                }
+
                 let value: string | boolean | number | undefined;
 
-                // Get the new value based on the key
-                if (
-                    key.includes("position") ||
-                    key.includes("format") ||
-                    key.includes("language")
-                ) {
-                    value = settings.get_string(key);
-                } else if (key.includes("geez") || key.includes("numerals")) {
-                    value = settings.get_boolean(key);
-                } else {
-                    // For other keys, try to determine type dynamically
-                    try {
+                // Get the new value based on the schema-defined type
+                switch (settingDef.type) {
+                    case "string":
+                        value = settings.get_string(key);
+                        break;
+                    case "int":
                         value = settings.get_int(key);
-                    } catch {
-                        try {
-                            value = settings.get_string(key);
-                        } catch {
-                            value = settings.get_boolean(key);
-                        }
-                    }
+                        break;
+                    case "boolean":
+                        value = settings.get_boolean(key);
+                        break;
+                    default:
+                        logger(
+                            `Error: Unknown setting type '${settingDef.type}' for key '${key}'`,
+                        );
+                        return;
                 }
 
                 if (value !== undefined) {
