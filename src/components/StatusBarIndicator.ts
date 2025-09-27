@@ -86,9 +86,12 @@ export class StatusBarIndicator extends ComponentBase {
                 Main.panel as unknown as MainPanelWithManager
             ).menuManager?.addMenu(popupMenu, 1);
 
-            // Connect popup show event
+            // Connect popup show event to
+            // hide month/year picker if visible
+            // reset to current month
             popupMenu.actor.connect("show", () => {
                 this._calendarPopup?.resetToCurrentMonth();
+                this._calendarPopup?.hidePickerIfVisible();
             });
 
             // Initialize services

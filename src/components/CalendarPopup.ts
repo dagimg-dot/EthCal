@@ -275,6 +275,15 @@ export class CalendarPopup extends ComponentBase {
     }
 
     /**
+     * Hide month/year picker if visible (called when popup loses focus)
+     */
+    public hidePickerIfVisible(): void {
+        if (this.isPickerVisible) {
+            this.hideMonthYearPicker();
+        }
+    }
+
+    /**
      * Reset calendar to current month
      */
     public resetToCurrentMonth(): void {
