@@ -179,11 +179,15 @@ export class DateFormatterService {
             if (hour >= 1 && hour < 6 && period === "day") return "ጠዋት";
             if (hour >= 6 && hour < 12 && period === "day") return "ከሰዓት";
             if (hour >= 1 && hour < 6 && period === "night") return "ምሽት";
+            if (hour >= 12 && period === "night") return "ምሽት";
+            if (hour >= 12 && period === "day") return "ጠዋት";
             return "ሌሊት";
         } else {
             if (hour >= 1 && hour < 6 && period === "day") return "Morning";
             if (hour >= 6 && hour < 12 && period === "day") return "Afternoon";
             if (hour >= 1 && hour < 6 && period === "night") return "Evening";
+            if (hour >= 12 && period === "night") return "Evening";
+            if (hour >= 12 && period === "day") return "Morning";
             return "Night";
         }
     }
