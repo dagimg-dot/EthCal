@@ -7,3 +7,6 @@ dist/
 gschemas.compiled
 locale/
 node_modules/
+
+# VS Code
+.vscode/
