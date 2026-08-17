@@ -6,4 +6,4 @@ import { ReactiveComponent, UpdateOrchestrator } from "./ReactiveBase.js";
 export type * from "./types.js";
 
 // Export main classes
-export { ExtensionBase, ComponentBase, ReactiveComponent, UpdateOrchestrator };
+export { ComponentBase, ExtensionBase, ReactiveComponent, UpdateOrchestrator };

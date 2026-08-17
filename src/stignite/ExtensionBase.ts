@@ -164,7 +164,9 @@ export abstract class ExtensionBase extends Extension {
     destroy(): void {
         // Destroy all components
         this.logger("Destroying extension and all components");
-        this.components.forEach((component) => component.destroy());
+        this.components.forEach((component) => {
+            component.destroy();
+        });
         this.components = [];
 
         // Run all cleanup functions

@@ -151,7 +151,9 @@ export class MonthYearPicker extends ComponentBase {
         if (!this.monthSlider || !this.dayInfoService) return;
 
         // Clear existing months
-        this.monthSlider.get_children().forEach((child) => child.destroy());
+        this.monthSlider.get_children().forEach((child) => {
+            child.destroy();
+        });
 
         // Create month items (1-13 for Ethiopian calendar)
         for (let month = 1; month <= 13; month++) {
@@ -167,7 +169,9 @@ export class MonthYearPicker extends ComponentBase {
         if (!this.yearSlider || !this.dayInfoService) return;
 
         // Clear existing years
-        this.yearSlider.get_children().forEach((child) => child.destroy());
+        this.yearSlider.get_children().forEach((child) => {
+            child.destroy();
+        });
 
         // Create year items (range around current year)
         const startYear = this.currentYear - 10;

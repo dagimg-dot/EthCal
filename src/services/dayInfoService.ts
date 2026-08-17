@@ -139,7 +139,7 @@ export class DayInfoService {
                     },
                 );
 
-                if (!fastingInfo || !fastingInfo.period) {
+                if (!fastingInfo?.period) {
                     // Handle weekly fasts (Tsome Dihnet)
                     if (fastKey === FastingKeys.TSOME_DIHENET) {
                         const isFastingDay =

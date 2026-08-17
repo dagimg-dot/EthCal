@@ -196,7 +196,9 @@ export class CalendarGrid extends ComponentBase {
 
     private clearGrid(): void {
         if (!this.outer) return;
-        this.outer.get_children().forEach((child) => child.destroy());
+        this.outer.get_children().forEach((child) => {
+            child.destroy();
+        });
     }
 
     private setCell(row: number, col: number, actor: St.Widget): void {

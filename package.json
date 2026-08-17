@@ -6,7 +6,7 @@
   "license": "MIT",
   "private": true,
   "devDependencies": {
-    "@biomejs/biome": "^2.1.4",
+    "@biomejs/biome": "^2.5.8",
     "@girs/gjs": "^4.0.0-beta.25",
     "@girs/gnome-shell": "^48.0.2",
     "esbuild": "^0.25.9",
@@ -26,6 +26,7 @@
     "format": "biome format --write .",
     "check": "biome check --write .",
     "check:types": "tsc -noEmit",
+    "check:all": "bun check && bun check:types",
     "bump": "bun scripts/bump-version.js bump",
     "release": "bun scripts/bump-version.js release"
   },
