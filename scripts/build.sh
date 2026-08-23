@@ -1,4 +1,6 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+
+set -e
 
 # ==============================================================================
 # This script builds the zip package for the extension. It compiles translations
@@ -11,13 +13,13 @@ function compile_resources() {
 
 	mkdir -p "$(dirname "$RESOURCE_XML")"
 
-	cat <<-EOF > "$RESOURCE_XML"
+	cat <<-EOF >"$RESOURCE_XML"
 		<?xml version='1.0' encoding='UTF-8'?>
 		<gresources>
 		  <gresource>
 				$(find data/ -type f | while read -r FILE; do
-					echo "    <file>${FILE#"data/"}</file>"
-				done)
+			echo "    <file>${FILE#"data/"}</file>"
+		done)
 		  </gresource>
 		</gresources>
 	EOF
@@ -31,6 +33,13 @@ function compile_resources() {
 		--target="$RESOURCE_TARGET"
 
 	echo "Resources compiled."
+}
+
+function compile_schemas() {
+	echo "Compiling schemas..."
+
+	glib-compile-schemas \
+		"$JS_DIR/schemas"
 }
 
 function compile_translations() {
@@ -48,7 +57,7 @@ function compile_translations() {
 function build_extension_package() {
 	# Compile TypeScript files, if used
 	if [ "$USING_TYPESCRIPT" = "true" ]; then
-		if ! (command -v bun &> /dev/null); then
+		if ! (command -v bun &>/dev/null); then
 			echo "ERROR: bun isn't installed. Can't compile TypeScript files. Exiting..."
 
 			exit 1
@@ -62,16 +71,16 @@ function build_extension_package() {
 
 		if ! (find . -maxdepth 1 -type d | grep -q "node_modules"); then
 			echo "Installing dependencies with Bun to compile TypeScript..."
-			bun install > /dev/null
+			bun install >/dev/null
 			echo "Dependencies installed."
 		fi
 
 		echo "Compiling TypeScript files..."
-			if find scripts/ -type f | grep -q "esbuild.js"; then
-				bun ./scripts/esbuild.js
-			else
-				bunx tsc
-			fi
+		if find scripts/ -type f | grep -q "esbuild.js"; then
+			bun ./scripts/esbuild.js
+		else
+			bunx tsc
+		fi
 		echo "Done."
 
 		if find src/ -type f | grep -qv ".ts"; then
@@ -79,7 +88,8 @@ function build_extension_package() {
 			(
 				cd src/
 				find . -type f ! -name '*.ts' | while read -r FILE; do
-					cp --parents "$FILE" ../dist/
+					mkdir -p "../dist/$(dirname "$FILE")"
+					cp "$FILE" "../dist/$FILE"
 				done
 			)
 			echo "Done."
@@ -87,8 +97,8 @@ function build_extension_package() {
 	fi
 
 	# Compile translations, if there are any
-	if (find po/ -type f | grep ".po$") &> /dev/null; then
-		if command -v msgfmt &> /dev/null; then
+	if (find po/ -type f | grep ".po$") &>/dev/null; then
+		if command -v msgfmt &>/dev/null; then
 			compile_translations
 		else
 			echo "WARNING: gettext isn't installed. Skipping compilation of translations..."
@@ -96,13 +106,20 @@ function build_extension_package() {
 	fi
 
 	# Compile resources, if there are any
-	if (find data/ -type f | grep ".") &> /dev/null; then
-		if command -v glib-compile-resources &> /dev/null; then
+	if (find data/ -type f | grep ".") &>/dev/null; then
+		if command -v glib-compile-resources &>/dev/null; then
 			compile_resources
 		else
-			echo "ERROR: glib-compile-resources isn't installed. Resources won't be compiled. This may cause errors for the extension. Please install glib-compile-resources and rebuild the extension. Exiting..."
+			echo "WARNING: glib-compile-resources isn't installed. Resources won't be compiled. The extension may not work correctly without them."
+		fi
+	fi
 
-			exit 1
+	# Compile schemas (only if requested, not needed after GNOME 45)
+	if [ "$COMPILE_SCHEMAS" = true ] && (find $JS_DIR/schemas/ -type f | grep ".") &>/dev/null; then
+		if command -v glib-compile-schemas &>/dev/null; then
+			compile_schemas
+		else
+			echo "WARNING: glib-compile-schemas isn't installed. Schemas won't be compiled."
 		fi
 	fi
 
@@ -111,14 +128,22 @@ function build_extension_package() {
 	(
 		mkdir -p "$BUILD_DIR"
 		rm -f "$BUILD_DIR/$UUID.shell-extension-v$VERSION.zip"
+
 		# Place the gresource at the root of the archive while keeping the built file under build/
-		cp "$RESOURCE_TARGET" "$JS_DIR/"
+		# Only copy if the resource file exists
+		if [ -f "$RESOURCE_TARGET" ]; then
+			cp "$RESOURCE_TARGET" "$JS_DIR/"
+		fi
+
 		# Copy metadata.json and LICENSE to dist/ directory so they're at the root of the zip
 		cp metadata.json "$JS_DIR/"
 		cp LICENSE "$JS_DIR/"
 		cd "$JS_DIR" && zip -qr "../$BUILD_DIR/$UUID.shell-extension-v$VERSION.zip" .
+
 		# Clean up temporary files
-		rm -f "$JS_DIR/$UUID.gresource"
+		if [ -f "$JS_DIR/$UUID.gresource" ]; then
+			rm -f "$JS_DIR/$UUID.gresource"
+		fi
 		rm -f "$JS_DIR/metadata.json"
 		rm -f "$JS_DIR/LICENSE"
 	)
@@ -132,12 +157,21 @@ function try_restarting_killall {
 }
 
 function try_restarting_gnome_shell() {
+	local use_gdm="${1:-false}"
+
+	# Restart GDM (display manager) - works on Wayland, logs user out
+	if [ "$use_gdm" = true ]; then
+		echo "Restarting GDM (display manager). You will be logged out..."
+		sudo systemctl restart gdm
+		return 0
+	fi
+
 	# Initial check to see if we are running under Wayland. However, just cause
 	# the session type isn't "wayland" doesn't mean we are running under X11.
 	# We could be running something like a "tty" (e. g. via ssh).
 	if [ "$XDG_SESSION_TYPE" = wayland ]; then
-		echo "ERROR: Failed to restart GNOME Shell. You're on Wayland. Restarting GNOME Shell is not supported since it would also kill your entire session. Please use X11, or log out and log back in to apply the changes."
-
+		echo "ERROR: Failed to restart GNOME Shell. You're on Wayland. Restarting GNOME Shell is not supported since it would also kill your entire session."
+		echo "Options: Use X11, log out and log back in, or use --restart-gdm to run 'sudo systemctl restart gdm'."
 		return 1
 	fi
 
@@ -149,19 +183,21 @@ function try_restarting_gnome_shell() {
 		else Meta.restart(_("Restarting…"), global.context);'
 
 	result=$(gdbus call \
-			--session \
-			--dest org.gnome.Shell \
-			--object-path /org/gnome/Shell \
-			--method org.gnome.Shell.Eval string:"$js")
+		--session \
+		--dest org.gnome.Shell \
+		--object-path /org/gnome/Shell \
+		--method org.gnome.Shell.Eval string:"$js")
 
 	if echo "$result" | grep -q "true"; then
 		echo "SUCCESS: Restart initiated using gdbus."
 	elif echo "$result" | grep -q "Wayland detected"; then
-		echo "ERROR: Failed to restart GNOME Shell. You're on Wayland. Restarting GNOME Shell is not supported since it would also kill your entire session. Please use X11, or log out and log back in to apply the changes."
+		echo "ERROR: Failed to restart GNOME Shell. You're on Wayland. Use --restart-gdm to run 'sudo systemctl restart gdm'."
+		return 1
 	elif echo "$result" | grep -q "false"; then
 		echo "ERROR: Failed to restart GNOME Shell. It looks like you didn't enable GNOME's unsafe mode. Please make sure to enable it and that you're running GNOME on X11."
 		echo "Trying to restart GNOME Shell using killall..."
 		try_restarting_killall
+		echo "Alternatively, use --restart-gdm to run 'sudo systemctl restart gdm'."
 	fi
 
 	return 0
@@ -172,8 +208,12 @@ function install_extension_package() {
 	gnome-extensions install --force "$BUILD_DIR/$UUID.shell-extension-v$VERSION.zip"
 	echo "Extension installed."
 
-	if [ "$1" = "-r" ]; then
-		try_restarting_gnome_shell
+	if [ "$1" = "-r" ] || [ "$RESTART_GDM" = true ]; then
+		if [ "$RESTART_GDM" = true ]; then
+			try_restarting_gnome_shell true
+		else
+			try_restarting_gnome_shell
+		fi
 	else
 		echo "Log out and log back in to apply the changes."
 		echo "After that, if you haven't enabled the extension yet, do so to start using it."
@@ -188,24 +228,29 @@ function enable_extension() {
 
 function usage() {
 	cat <<-EOF
-	Build the zip package for this extension
+		Build the zip package for this extension
 
-	Usage:
-	  $(basename "$0") [OPTION]
+		Usage:
+		  $(basename "$0") [OPTION]
 
-	Options:
-	  -i, --install         Install the extension after building
-	  -r, --unsafe-reload   Build and install the extension, then reload GNOME
-	                        Shell. This is for development purposes as it restarts
-	                        GNOME Shell with an X11 session by relying on the eval
-	                        method. To use the eval method, you need to enable
-	                        GNOME's unsafe mode. So this options is intended for
-	                        safe environments. A dev workflow could look like this:
-	                        Create a VM running GNOME on X11. Create a shared
-	                        folder with your project in it. Develop on the host but
-	                        run the build script within the VM using this option to
-	                        quickly test your extension
-	  -h, --help            Display this help message
+		Options:
+		  -b, --build           Build the extension package (default)
+		  -i, --install         Install the extension after building
+		  -r, --unsafe-reload   Build and install the extension, then reload GNOME
+		                        Shell. This is for development purposes as it restarts
+		                        GNOME Shell with an X11 session by relying on the eval
+		                        method. To use the eval method, you need to enable
+		                        GNOME's unsafe mode. So this options is intended for
+		                        safe environments. A dev workflow could look like this:
+		                        Create a VM running GNOME on X11. Create a shared
+		                        folder with your project in it. Develop on the host but
+		                        run the build script within the VM using this option to
+		                        quickly test your extension
+		  --restart-gdm         Use 'systemctl restart gdm' to apply changes instead of
+		                        gdbus/killall. Works on Wayland (logs you out). Use with
+		                        -i or -r.
+		  --compile-schemas     Compile schemas (not needed after GNOME 45)
+		  -h, --help            Display this help message
 	EOF
 }
 
@@ -213,15 +258,16 @@ function usage() {
 # Main script starts here #
 ###########################
 
-cd -- "$( dirname "$0" )/../"
+cd -- "$(dirname "$0")/../"
 
-UUID=$(grep -oP '"uuid": "\K[^"]+' metadata.json)
-VERSION=$(grep -oP '"version": "\K[^"]+' package.json)
+UUID=$(sed -n 's/.*"uuid": "\([^"]*\)".*/\1/p' metadata.json)
+VERSION=$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' package.json)
 BUILD_DIR="build"
 RESOURCE_XML="$BUILD_DIR/$UUID.gresource.xml"
 RESOURCE_TARGET="$BUILD_DIR/$UUID.gresource"
 USING_TYPESCRIPT=$(find . -maxdepth 1 -type f | grep -q "tsconfig.json" && echo "true" || echo "false")
 TYPESCRIPT_OUT_DIR="dist"
+COMPILE_SCHEMAS=false
 
 if [ "$USING_TYPESCRIPT" = "true" ]; then
 	JS_DIR="$TYPESCRIPT_OUT_DIR"
@@ -229,37 +275,58 @@ else
 	JS_DIR="src"
 fi
 
-if [ $# -eq 0 ]; then
-	build_extension_package
-	exit 0
-elif [ $# -eq 1 ]; then
+# Parse options
+INSTALL=false
+UNSAFE_RELOAD=false
+BUILD=false
+RESTART_GDM=false
+
+while [[ $# -gt 0 ]]; do
 	case "$1" in
-		--build | -b)
-			build_extension_package
-			exit 0
-			;;
-		--install | -i)
-			build_extension_package
-			install_extension_package
-			enable_extension
-			exit 0
-			;;
-		--help | -h)
-			usage
-			exit 0
-			;;
-		--unsafe-reload | -r)
-			build_extension_package
-			install_extension_package -r
-			enable_extension
-			exit 0
-			;;
-		*)
-			echo "Invalid option: $1. Use --help for help."
-			exit 1
-			;;
+	--build | -b)
+		BUILD=true
+		shift
+		;;
+	--install | -i)
+		INSTALL=true
+		shift
+		;;
+	--unsafe-reload | -r)
+		UNSAFE_RELOAD=true
+		shift
+		;;
+	--restart-gdm)
+		RESTART_GDM=true
+		shift
+		;;
+	--compile-schemas)
+		COMPILE_SCHEMAS=true
+		shift
+		;;
+	--help | -h)
+		usage
+		exit 0
+		;;
+	*)
+		echo "Invalid option: $1. Use --help for help."
+		exit 1
+		;;
 	esac
-else
-	echo "Invalid number of arguments. Use --help for help."
-	exit 1
+done
+
+# Default action is to build if no other action is specified
+if [ "$BUILD" = false ] && [ "$INSTALL" = false ] && [ "$UNSAFE_RELOAD" = false ]; then
+	BUILD=true
+fi
+
+if [ "$BUILD" = true ]; then
+	build_extension_package
+fi
+
+if [ "$INSTALL" = true ]; then
+	install_extension_package
+	enable_extension
+elif [ "$UNSAFE_RELOAD" = true ]; then
+	install_extension_package -r
+	enable_extension
 fi

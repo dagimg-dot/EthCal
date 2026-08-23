@@ -7,6 +7,15 @@ dist/
 gschemas.compiled
 locale/
 node_modules/
+.direnv
+.devenv
+.pre-commit-config.yaml
+result
+.DS_Store
+.env
 
 # VS Code
 .vscode/
+
+# Generated scripts
+scripts/dev-*.sh
