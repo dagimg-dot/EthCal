@@ -94,5 +94,44 @@
         </child>
       </object>
     </child>
+
+    <!-- Debug Settings Group -->
+    <child>
+      <object class="AdwPreferencesGroup">
+        <property name="title" translatable="true">Debug Settings</property>
+        <child>
+          <object class="AdwComboRow" id="loggingLevel">
+            <property name="title" translatable="true">Logging Level</property>
+            <property name="subtitle" translatable="true">Controls verbosity of extension logging</property>
+            <property name="model">
+              <object class="GtkStringList">
+                <items>
+                  <item>error</item>
+                  <item>warn</item>
+                  <item>info</item>
+                  <item>debug</item>
+                </items>
+              </object>
+            </property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwActionRow" id="journalctlRow">
+            <property name="title" translatable="true">Extension Logs Command</property>
+            <property name="subtitle">journalctl --user -n 50 -g &quot;EthCal&quot;</property>
+            <child>
+              <object class="GtkButton" id="copyLogsCommandButton">
+                <property name="valign">center</property>
+                <property name="icon-name">edit-copy-symbolic</property>
+                <property name="tooltip-text" translatable="true">Copy Command</property>
+                <style>
+                  <class name="flat"/>
+                </style>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
   </template>
 </interface>

@@ -8,6 +8,7 @@ export const SETTINGS = {
         STATUS_BAR_CUSTOM_FORMAT: "status-bar-custom-format",
         CALENDAR_LANGUAGE: "calendar-language",
         USE_GEEZ_NUMERALS: "use-geez-numerals",
+        LOGGING_LEVEL: "logging-level",
     } as const,
 
     OPTIONS: {
@@ -21,6 +22,7 @@ export const SETTINGS = {
         ] as const,
         LANGUAGE: ["amharic", "english"] as const,
         GEEZ_NUMERALS: [false, true] as const,
+        LOGGING_LEVEL: ["error", "warn", "info", "debug"] as const,
     } as const,
 
     DEFAULTS: {
@@ -29,12 +31,15 @@ export const SETTINGS = {
         CUSTOM_FORMAT: "dday, mnam dd, year hh:mm",
         LANGUAGE: "amharic",
         GEEZ_NUMERALS: false as boolean,
+        LOGGING_LEVEL: "info",
     } as const,
 } as const;
 
 export type PositionOption = (typeof SETTINGS.OPTIONS.POSITION)[number];
 export type FormatOption = (typeof SETTINGS.OPTIONS.FORMAT)[number];
 export type LanguageOption = (typeof SETTINGS.OPTIONS.LANGUAGE)[number];
+export type LoggingLevelOption =
+    (typeof SETTINGS.OPTIONS.LOGGING_LEVEL)[number];
 
 export interface StatusBarConfig {
     position?: PositionOption;
@@ -61,6 +66,9 @@ export interface GeneralPageChildren {
     _customFormatHelpButton: Gtk.Button;
     _calendarLanguage: Adw.ComboRow;
     _useGeezNumerals: Adw.SwitchRow;
+    _loggingLevel: Adw.ComboRow;
+    _journalctlRow: Adw.ActionRow;
+    _copyLogsCommandButton: Gtk.Button;
 }
 
 export interface AboutPageChildren {

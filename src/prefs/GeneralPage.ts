@@ -1,11 +1,18 @@
 import Adw from "gi://Adw";
+import Gdk from "gi://Gdk";
 import Gio from "gi://Gio";
+import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk";
-import type { GeneralPageChildren } from "../types/index.js";
+import type {
+    GeneralPageChildren,
+    LoggingLevelOption,
+} from "../types/index.js";
 import { SETTINGS } from "../types/index.js";
 import { getTemplate } from "../utils/getTemplate.js";
 import { logger } from "../utils/logger.js";
+
+const LOGS_COMMAND = 'journalctl --user -n 50 -g "EthCal"';
 
 export const GeneralPage = GObject.registerClass(
     {
@@ -18,6 +25,9 @@ export const GeneralPage = GObject.registerClass(
             "customFormatHelpButton",
             "calendarLanguage",
             "useGeezNumerals",
+            "loggingLevel",
+            "journalctlRow",
+            "copyLogsCommandButton",
         ],
     },
     class GeneralPage extends Adw.PreferencesPage {
@@ -137,6 +147,60 @@ export const GeneralPage = GObject.registerClass(
                 children,
                 settings.get_string(SETTINGS.KEYS.STATUS_BAR_FORMAT),
             );
+
+            // Bind debug settings
+            this._bindLoggingLevel(settings, children);
+            this._bindCopyLogsCommand(children);
+        }
+
+        private _bindLoggingLevel(
+            settings: Gio.Settings,
+            children: GeneralPageChildren,
+        ) {
+            const row = children._loggingLevel;
+            if (!row) return;
+
+            const currentLevel = settings.get_string(
+                SETTINGS.KEYS.LOGGING_LEVEL,
+            );
+            const currentIndex = SETTINGS.OPTIONS.LOGGING_LEVEL.indexOf(
+                currentLevel as LoggingLevelOption,
+            );
+
+            row.selected = currentIndex >= 0 ? currentIndex : 2;
+
+            row.connect("notify::selected", () => {
+                const selectedIndex = row.selected;
+                if (
+                    selectedIndex >= 0 &&
+                    selectedIndex < SETTINGS.OPTIONS.LOGGING_LEVEL.length
+                ) {
+                    settings.set_string(
+                        SETTINGS.KEYS.LOGGING_LEVEL,
+                        SETTINGS.OPTIONS.LOGGING_LEVEL[selectedIndex],
+                    );
+                }
+            });
+        }
+
+        private _bindCopyLogsCommand(children: GeneralPageChildren) {
+            if (!children._copyLogsCommandButton) return;
+
+            children._copyLogsCommandButton.connect("clicked", () => {
+                const display = Gdk.Display.get_default();
+                display?.get_clipboard()?.set(LOGS_COMMAND);
+
+                children._copyLogsCommandButton.set_icon_name(
+                    "object-select-symbolic",
+                );
+
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1500, () => {
+                    children._copyLogsCommandButton.set_icon_name(
+                        "edit-copy-symbolic",
+                    );
+                    return GLib.SOURCE_REMOVE;
+                });
+            });
         }
 
         private _updateComboBoxes(

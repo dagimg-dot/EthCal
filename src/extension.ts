@@ -2,7 +2,11 @@ import type { ExtensionMetadata } from "resource:///org/gnome/shell/extensions/e
 import { StatusBarIndicator } from "./components/StatusBarIndicator.js";
 import { ExtensionBase } from "./stignite/index.js";
 import { SETTINGS } from "./types/index.js";
-import { logger } from "./utils/logger.js";
+import {
+    deinitializeLogger,
+    initializeLogger,
+    logger,
+} from "./utils/logger.js";
 
 export default class EthCal extends ExtensionBase {
     private _statusBarIndicator: StatusBarIndicator | undefined;
@@ -30,17 +34,26 @@ export default class EthCal extends ExtensionBase {
                 type: "boolean" as const,
                 default: SETTINGS.DEFAULTS.GEEZ_NUMERALS,
             },
+            [SETTINGS.KEYS.LOGGING_LEVEL]: {
+                type: "string" as const,
+                default: SETTINGS.DEFAULTS.LOGGING_LEVEL,
+            },
         };
 
         super(metadata, { settingSchema, logger });
     }
 
     enable(): void {
+        initializeLogger(this.getSettings());
+        logger.info("Enabling EthCal extension");
+
         this._statusBarIndicator = new StatusBarIndicator(this);
         this.addComponent(this._statusBarIndicator);
     }
 
     disable(): void {
+        logger.info("Disabling EthCal extension");
         super.destroy();
+        deinitializeLogger(this.getSettings());
     }
 }

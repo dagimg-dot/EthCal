@@ -49,5 +49,18 @@
             <summary>Use Geez numerals</summary>
             <description>Display calendar numbers using traditional Ethiopian numerals</description>
         </key>
+
+        <!-- Debug Settings -->
+        <key name="logging-level" type="s">
+            <default>'info'</default>
+            <summary>Logging verbosity level</summary>
+            <description>Controls how verbose the extension logging should be (debug, info, warn, error)</description>
+            <choices>
+                <choice value='error'/>
+                <choice value='warn'/>
+                <choice value='info'/>
+                <choice value='debug'/>
+            </choices>
+        </key>
     </schema>
 </schemalist>
