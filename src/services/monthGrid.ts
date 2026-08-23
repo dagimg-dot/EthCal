@@ -3,7 +3,7 @@ import Kenat, {
     HolidayTags,
     monthNames,
     toGeez,
-} from "kenat";
+} from "../lib/kenat.js";
 
 export type WeekdayLanguage = "amharic" | "english";
 

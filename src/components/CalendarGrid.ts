@@ -1,12 +1,12 @@
 import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
 import St from "gi://St";
-import { ComponentBase, ReactiveComponent } from "stignite";
 import type {
     DayCell,
     MonthGridResult,
     MonthGridService,
 } from "../services/monthGrid.js";
+import { ComponentBase, ReactiveComponent } from "../stignite/index.js";
 import { SETTINGS } from "../types/index.js";
 
 @ReactiveComponent({

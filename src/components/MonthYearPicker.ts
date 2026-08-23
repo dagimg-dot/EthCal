@@ -1,9 +1,9 @@
 import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
 import St from "gi://St";
-import { toGeez } from "kenat";
-import { ComponentBase, ReactiveComponent } from "stignite";
+import { toGeez } from "../lib/kenat.js";
 import { createDayInfoService } from "../services/dayInfoService.js";
+import { ComponentBase, ReactiveComponent } from "../stignite/index.js";
 import type { LanguageOption } from "../types/index.js";
 import { SETTINGS } from "../types/index.js";
 

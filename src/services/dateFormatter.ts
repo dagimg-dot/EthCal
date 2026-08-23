@@ -1,4 +1,4 @@
-import Kenat, { toGeez } from "kenat";
+import Kenat, { toGeez } from "../lib/kenat.js";
 import type { LanguageOption } from "../types/index.js";
 
 export interface DateFormatterOptions {

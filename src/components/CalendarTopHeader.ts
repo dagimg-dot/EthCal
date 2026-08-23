@@ -1,7 +1,7 @@
 import type Gio from "gi://Gio";
 import St from "gi://St";
-import Kenat from "kenat";
-import { ComponentBase, ReactiveComponent } from "stignite";
+import Kenat from "../lib/kenat.js";
+import { ComponentBase, ReactiveComponent } from "../stignite/index.js";
 import { type LanguageOption, SETTINGS } from "../types/index.js";
 
 @ReactiveComponent({

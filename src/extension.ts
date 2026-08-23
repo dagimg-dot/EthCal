@@ -1,6 +1,6 @@
 import type { ExtensionMetadata } from "resource:///org/gnome/shell/extensions/extension.js";
-import { ExtensionBase } from "stignite";
 import { StatusBarIndicator } from "./components/StatusBarIndicator.js";
+import { ExtensionBase } from "./stignite/index.js";
 import { SETTINGS } from "./types/index.js";
 import { logger } from "./utils/logger.js";
 
