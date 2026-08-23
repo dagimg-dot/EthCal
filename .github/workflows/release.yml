@@ -20,7 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "22"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
@@ -31,7 +31,11 @@ jobs:
         run: bun install
 
       - name: Install system dependencies
-        run: sudo apt-get install -y gettext libglib2.0-dev
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gettext libglib2.0-dev
 
       - name: Build extension
         run: |
@@ -69,14 +73,8 @@ jobs:
           echo "zip_file=${ZIP_FILE}" >> $GITHUB_OUTPUT
           echo "zip_name=$(basename ${ZIP_FILE})" >> $GITHUB_OUTPUT
 
-      - name: Publish to extensions.gnome.org
-        run: ./scripts/publish.sh "${{ steps.find-zip.outputs.zip_file }}"
-        env:
-          GNOME_USERNAME: ${{ secrets.GNOME_USERNAME }}
-          GNOME_PASSWORD: ${{ secrets.GNOME_PASSWORD }}
-
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref }}
           name: ${{ steps.version.outputs.release_name }}
