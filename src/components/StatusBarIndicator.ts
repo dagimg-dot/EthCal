@@ -19,6 +19,7 @@ import type {
     PositionOption,
 } from "../types/index.js";
 import { SETTINGS } from "../types/index.js";
+import { logger } from "../utils/logger.js";
 import { CalendarPopup } from "./CalendarPopup.js";
 
 interface MainPanel {
@@ -166,6 +167,7 @@ export class StatusBarIndicator extends ComponentBase {
                 (Main.panel as unknown as MainPanel)[
                     method as keyof MainPanel
                 ]?.insert_child_at_index(this._indicator.container, 1);
+                logger.debug(`Status bar position updated to: ${position}`);
             }
         }, "Failed to update panel position");
     }

@@ -32,7 +32,7 @@ export const GeneralPage = GObject.registerClass(
     },
     class GeneralPage extends Adw.PreferencesPage {
         bindSettings(settings: Gio.Settings) {
-            logger("This is from prefs");
+            logger.debug("Settings bound to GeneralPage");
             const children = this as unknown as GeneralPageChildren;
 
             // Helper function to bind combo box with string setting
@@ -167,18 +167,17 @@ export const GeneralPage = GObject.registerClass(
                 currentLevel as LoggingLevelOption,
             );
 
-            row.selected = currentIndex >= 0 ? currentIndex : 2;
+            row.set_selected(currentIndex >= 0 ? currentIndex : 2);
 
             row.connect("notify::selected", () => {
-                const selectedIndex = row.selected;
+                const selectedIndex = row.get_selected();
                 if (
                     selectedIndex >= 0 &&
                     selectedIndex < SETTINGS.OPTIONS.LOGGING_LEVEL.length
                 ) {
-                    settings.set_string(
-                        SETTINGS.KEYS.LOGGING_LEVEL,
-                        SETTINGS.OPTIONS.LOGGING_LEVEL[selectedIndex],
-                    );
+                    const newLevel =
+                        SETTINGS.OPTIONS.LOGGING_LEVEL[selectedIndex];
+                    settings.set_string(SETTINGS.KEYS.LOGGING_LEVEL, newLevel);
                 }
             });
         }

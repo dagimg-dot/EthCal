@@ -72,7 +72,7 @@ export abstract class ComponentBase {
         try {
             return operation();
         } catch (error) {
-            logger(`${errorMessage}: ${error}`);
+            logger.error(`${errorMessage}: ${error}`);
             throw error;
         }
     }
@@ -87,7 +87,7 @@ export abstract class ComponentBase {
         try {
             return await operation();
         } catch (error) {
-            logger(`${errorMessage}: ${error}`);
+            logger.error(`${errorMessage}: ${error}`);
             throw error;
         }
     }
@@ -104,7 +104,7 @@ export abstract class ComponentBase {
                 try {
                     callback(data);
                 } catch (error) {
-                    logger(
+                    logger.error(
                         `Error in event listener for '${eventName}': ${error}`,
                     );
                 }
@@ -215,7 +215,7 @@ export abstract class ComponentBase {
             try {
                 cleanup();
             } catch (error) {
-                logger(`Cleanup error: ${error}`);
+                logger.warn(`Cleanup error: ${error}`);
             }
         });
         this.cleanup = [];

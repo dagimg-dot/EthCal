@@ -5,6 +5,7 @@ import { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/
 
 import { AboutPage } from "./prefs/AboutPage.js";
 import { GeneralPage } from "./prefs/GeneralPage.js";
+import { initializeLogger } from "./utils/logger.js";
 
 export default class EthCalPrefs extends ExtensionPreferences {
     override async fillPreferencesWindow(
@@ -17,6 +18,7 @@ export default class EthCalPrefs extends ExtensionPreferences {
         // Create a settings object and bind the row to our key.
         // Attach the settings object to the window to keep it alive while the window is alive.
         prefsWindow._settings = this.getSettings();
+        initializeLogger(prefsWindow._settings);
 
         const generalPage = new GeneralPage();
         generalPage.bindSettings(prefsWindow._settings);

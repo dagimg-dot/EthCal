@@ -85,8 +85,15 @@ export class UpdateOrchestrator {
         const affectedComponents = this.dependencyGraph.get(settingKey);
 
         if (!affectedComponents || affectedComponents.size === 0) {
+            logger.debug(
+                `Setting '${settingKey}' changed to: ${JSON.stringify(newValue)} (no components affected)`,
+            );
             return;
         }
+
+        logger.debug(
+            `Setting '${settingKey}' changed to: ${JSON.stringify(newValue)} (notifying ${affectedComponents.size} components: ${Array.from(affectedComponents).join(", ")})`,
+        );
 
         // Create update info for each affected component
         affectedComponents.forEach((componentId) => {
@@ -120,6 +127,10 @@ export class UpdateOrchestrator {
         const currentBatch = [...this.updateQueue];
         this.updateQueue = [];
 
+        logger.debug(
+            `Processing update batch for components: ${currentBatch.map((u) => u.componentId).join(", ")}`,
+        );
+
         // Process batch
         for (const updateInfo of currentBatch) {
             const component = this.componentRegistry.get(
@@ -133,7 +144,7 @@ export class UpdateOrchestrator {
                         priority: updateInfo.priority,
                     });
                 } catch (error) {
-                    logger(
+                    logger.error(
                         `Error updating component ${updateInfo.componentId}: ${error}`,
                     );
                 }

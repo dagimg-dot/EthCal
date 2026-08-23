@@ -1,6 +1,7 @@
 import type Gio from "gi://Gio";
 import type { ExtensionMetadata } from "resource:///org/gnome/shell/extensions/extension.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
+import { setLogLevel } from "../utils/logger.js";
 import type { ComponentBase } from "./ComponentBase.js";
 import { UpdateOrchestrator } from "./ReactiveBase.js";
 import type {
@@ -146,6 +147,9 @@ export abstract class ExtensionBase extends Extension {
                 }
 
                 if (value !== undefined) {
+                    if (key === "logging-level") {
+                        setLogLevel(value as string);
+                    }
                     this.orchestrator.notifySettingChanged(key, value);
                 }
             } catch (error) {

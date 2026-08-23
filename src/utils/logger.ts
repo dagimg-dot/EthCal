@@ -26,36 +26,52 @@ const stringToLogLevel = (level: string): LogLevel => {
 
 // Global settings reference for logger
 let currentLogLevel: LogLevel = LogLevel.INFO;
+let settingsRef: Gio.Settings | null = null;
 let loggingLevelChangedHandlerId: number | null = null;
+
+export const setLogLevel = (level: string | LogLevel) => {
+    const newLogLevel =
+        typeof level === "string" ? stringToLogLevel(level) : level;
+    if (newLogLevel !== currentLogLevel) {
+        currentLogLevel = newLogLevel;
+    }
+};
 
 // Initialize logger with settings
 export const initializeLogger = (settings: Gio.Settings) => {
+    if (settingsRef && loggingLevelChangedHandlerId !== null) {
+        settingsRef.disconnect(loggingLevelChangedHandlerId);
+        loggingLevelChangedHandlerId = null;
+    }
+    settingsRef = settings;
+
     // Set initial log level
     const levelString = settings.get_string("logging-level");
     currentLogLevel = stringToLogLevel(levelString);
 
-    if (loggingLevelChangedHandlerId !== null) {
-        settings.disconnect(loggingLevelChangedHandlerId);
-    }
-
     // Listen for log level changes
-    loggingLevelChangedHandlerId = settings.connect(
+    loggingLevelChangedHandlerId = settingsRef.connect(
         "changed::logging-level",
-        () => {
-            const newLevelString = settings.get_string("logging-level");
-            currentLogLevel = stringToLogLevel(newLevelString);
-            log(LogLevel.INFO, `Log level changed to: ${newLevelString}`);
+        (s) => {
+            const newLevelString = s.get_string("logging-level");
+            const newLogLevel = stringToLogLevel(newLevelString);
+            if (newLogLevel !== currentLogLevel) {
+                currentLogLevel = newLogLevel;
+                log(LogLevel.INFO, `Log level changed to: ${newLevelString}`);
+            }
         },
     );
 
     log(LogLevel.INFO, `Logger initialized with level: ${levelString}`);
 };
 
-export const deinitializeLogger = (settings: Gio.Settings) => {
-    if (loggingLevelChangedHandlerId !== null) {
-        settings.disconnect(loggingLevelChangedHandlerId);
+export const deinitializeLogger = (settings?: Gio.Settings) => {
+    const target = settings ?? settingsRef;
+    if (target && loggingLevelChangedHandlerId !== null) {
+        target.disconnect(loggingLevelChangedHandlerId);
         loggingLevelChangedHandlerId = null;
     }
+    settingsRef = null;
 };
 
 // Single write function — all console output routes through here
