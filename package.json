@@ -9,28 +9,31 @@
     "@biomejs/biome": "^2.5.8",
     "@girs/gjs": "^4.0.0-beta.25",
     "@girs/gnome-shell": "^48.0.2",
+    "dotenv": "^17.4.2",
     "esbuild": "^0.25.9",
     "esbuild-plugin-tsc": "^0.5.0",
+    "esbuild-preserve-whitespace": "^1.2.0",
     "typescript": "^5.9.2"
   },
   "scripts": {
-    "dev": "bun check && ./scripts/build.sh -r",
-    "dev:nested": "bun build:install && env MUTTER_DEBUG_DUMMY_MODE_SPECS=1500x900 dbus-run-session gnome-shell --devkit --wayland",
-    "build": "./scripts/build.sh",
-    "build:install": "bun check && ./scripts/build.sh --install",
+    "dev": "bun check && ./scripts/build.sh --build --unsafe-reload",
+    "dev:nested": "bun build:install && env MUTTER_DEBUG_DUMMY_MODE_SPECS=1500x900 ./scripts/run-dev-session.sh",
+    "build": "./scripts/build.sh --build",
+    "build:install": "bun check && ./scripts/build.sh --build --install",
+    "build:install:gdm": "bun check && ./scripts/build.sh --build --install --restart-gdm",
     "setup": "./scripts/setup.sh",
     "log": "./scripts/log.sh -f",
     "log:all": "./scripts/log.sh",
     "lint": "biome lint --write .",
-    "lint:unsafe": "biome lint --write --unsafe .",
+    "lint:fix": "biome lint --write --unsafe .",
     "format": "biome format --write .",
     "check": "biome check --write .",
     "check:types": "tsc -noEmit",
-    "check:all": "bun check && bun check:types",
     "bump": "bun scripts/bump-version.js bump",
-    "release": "bun scripts/bump-version.js release"
+    "release": "bun scripts/bump-version.js release",
+    "update-credits": "bun scripts/update-contrib.js"
   },
   "dependencies": {
-    "kenat": "3.2.0"
+    "kenat": "^4.0.0"
   }
 }

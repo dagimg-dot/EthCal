@@ -1,4 +1,4 @@
-import Kenat, { getFastingInfo, getHolidaysInMonth } from "kenat";
+import Kenat, { getFastingInfo, getHolidaysInMonth } from "../lib/kenat.js";
 
 // Define FastingKeys locally since it's not exported from the main package
 const FastingKeys = {
@@ -108,9 +108,15 @@ export class DayInfoService {
                 },
             );
 
-            return monthHolidays.filter(
-                (holiday) => holiday.ethiopian.day === ethiopianDate.day,
-            );
+            return monthHolidays
+                .filter(
+                    (holiday) => holiday.ethiopian.day === ethiopianDate.day,
+                )
+                .map((holiday) => ({
+                    ...holiday,
+                    name: holiday.name || holiday.key,
+                    description: holiday.description || "",
+                }));
         } catch (error) {
             console.error("Error getting holidays:", error);
             return [];
