@@ -141,7 +141,9 @@ export class CalendarEventsSection extends ComponentBase {
         if (!this.eventsList || !this.dayInfoService) return;
 
         // Clear existing events
-        this.eventsList.get_children().forEach((child) => child.destroy());
+        this.eventsList.get_children().forEach((child) => {
+            child.destroy();
+        });
 
         // Get and display events for the selected date
         const dayEvents = this.dayInfoService.getDayEvents(date);
