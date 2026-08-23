@@ -48,6 +48,12 @@ export interface CalendarConfig {
     weekStartsOn?: number;
 }
 
+export interface Credit {
+    title: string;
+    subtitle: string;
+    github?: string;
+}
+
 export interface GeneralPageChildren {
     _statusBarPosition: Adw.ComboRow;
     _statusBarFormat: Adw.ComboRow;

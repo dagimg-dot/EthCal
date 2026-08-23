@@ -3,10 +3,43 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import type { ExtensionMetadata } from "@girs/gnome-shell/extensions/extension";
-import type { AboutPageChildren } from "../types/index.js";
+import type { AboutPageChildren, Credit } from "../types/index.js";
 import { getTemplate } from "../utils/getTemplate.js";
 
-const LICENSE = "You can check out the LICENSE in the github page 🙂";
+export const CREDITS: Credit[] = [
+    {
+        title: "Dagim G. Astatkie",
+        subtitle: "Original Author",
+        github: "dagimg-dot",
+    },
+    {
+        title: "ashenafidl",
+        subtitle: "Contributor",
+        github: "ashenafidl",
+    },
+];
+
+const LICENSE = `MIT License
+
+Copyright (c) 2025 Dagim G. Astatkie
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.`;
 
 export const AboutPage = GObject.registerClass(
     {
@@ -30,7 +63,7 @@ export const AboutPage = GObject.registerClass(
             // Set the icon from the project's assets
             const iconPath = GLib.uri_resolve_relative(
                 import.meta.url,
-                "assets/icons/ethcal.svg",
+                "../assets/icons/ethcal.svg",
                 GLib.UriFlags.NONE,
             );
             if (iconPath) {
@@ -48,9 +81,13 @@ export const AboutPage = GObject.registerClass(
             // Set extension name
             children._extensionName.set_text(metadata.name || "EthCal");
 
-            // Set version (you might want to get this from metadata or package.json)
+            // Set version
+            const envSuffix =
+                typeof __ETHCAL_ENV_SUFFIX__ !== "undefined"
+                    ? __ETHCAL_ENV_SUFFIX__
+                    : "";
             children._extensionVersion.set_text(
-                metadata["version-name"] || "1.0.0",
+                `v${metadata["version-name"] || metadata.version || "1.0.0"}${envSuffix}`,
             );
 
             // Set up website link
@@ -80,9 +117,31 @@ export const AboutPage = GObject.registerClass(
             // Set license text
             children._extensionLicense.buffer.set_text(LICENSE, -1);
 
-            // You could expand credits/legal sections if needed
-            // children._creditsRow.expanded = false;
-            // children._legalRow.expanded = false;
+            // Render credits
+            this.renderCredits(children);
+        }
+
+        private renderCredits(children: AboutPageChildren) {
+            const creditsExpander = children._creditsRow;
+
+            CREDITS.forEach((credit) => {
+                const creditRow = new Adw.ActionRow({
+                    title: credit.title,
+                    subtitle: credit.subtitle,
+                });
+
+                if (credit.github) {
+                    creditRow.set_activatable(true);
+                    creditRow.connect("activated", () => {
+                        Gio.AppInfo.launch_default_for_uri(
+                            `https://github.com/${credit.github}`,
+                            null,
+                        );
+                    });
+                }
+
+                creditsExpander.add_row(creditRow);
+            });
         }
     },
 );

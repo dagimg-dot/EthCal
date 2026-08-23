@@ -30,7 +30,7 @@
                 <property name="spacing">8</property>
                 <child>
                   <object class="GtkLabel" id="extensionName">
-                    <property name="label">Vicinae</property>
+                    <property name="label">EthCal</property>
                     <property name="halign">3</property>
                     <style>
                       <class name="title-1"/>
