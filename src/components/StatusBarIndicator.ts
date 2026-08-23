@@ -3,12 +3,16 @@ import St from "gi://St";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
-import Kenat from "kenat";
-import { ComponentBase, type ExtensionBase, ReactiveComponent } from "stignite";
+import Kenat from "../lib/kenat.js";
 import {
     createDateFormatterService,
     type DateFormatterService,
 } from "../services/dateFormatter.js";
+import {
+    ComponentBase,
+    type ExtensionBase,
+    ReactiveComponent,
+} from "../stignite/index.js";
 import type {
     FormatOption,
     LanguageOption,
@@ -32,8 +36,8 @@ interface MainPanelWithManager extends MainPanel {
         [SETTINGS.KEYS.STATUS_BAR_POSITION]: ["panel-position"],
         [SETTINGS.KEYS.STATUS_BAR_FORMAT]: ["time-display"],
         [SETTINGS.KEYS.STATUS_BAR_CUSTOM_FORMAT]: ["time-display"],
-        [SETTINGS.KEYS.CALENDAR_LANGUAGE]: ["date-formatter", "calendar-popup"],
-        [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: ["date-formatter", "calendar-popup"],
+        [SETTINGS.KEYS.CALENDAR_LANGUAGE]: ["date-formatter"],
+        [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: ["date-formatter"],
     },
     priority: 10, // High priority as it's the main UI component
     id: "status-bar-indicator",
@@ -89,10 +93,11 @@ export class StatusBarIndicator extends ComponentBase {
             // Connect popup show event to
             // hide month/year picker if visible
             // reset to current month
-            popupMenu.actor.connect("show", () => {
+            const showSignalId = popupMenu.actor.connect("show", () => {
                 this._calendarPopup?.resetToCurrentMonth();
                 this._calendarPopup?.hidePickerIfVisible();
             });
+            this.addCleanup(() => popupMenu.actor.disconnect(showSignalId));
 
             // Initialize services
             this.dateFormatter = createDateFormatterService({
@@ -119,7 +124,7 @@ export class StatusBarIndicator extends ComponentBase {
      * Smart partial updates - called when settings change
      */
     protected renderUpdates(
-        changes: Record<string, unknown>,
+        _changes: Record<string, unknown>,
         affectedParts: string[],
     ): void {
         this.withErrorHandling(() => {
@@ -132,11 +137,6 @@ export class StatusBarIndicator extends ComponentBase {
                 affectedParts.includes("date-formatter")
             ) {
                 this.updateTimeDisplay();
-            }
-
-            if (affectedParts.includes("calendar-popup")) {
-                // CalendarPopup will handle its own updates
-                this._calendarPopup?.render({ changes, affectedParts });
             }
         }, "Failed to update StatusBarIndicator");
     }

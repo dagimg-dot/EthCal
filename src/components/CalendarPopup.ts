@@ -1,9 +1,13 @@
 import St from "gi://St";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
-import Kenat from "kenat";
-import { ComponentBase, type ExtensionBase, ReactiveComponent } from "stignite";
+import Kenat from "../lib/kenat.js";
 import type { KenatDate } from "../services/dayInfoService.js";
 import { MonthGridService } from "../services/monthGrid.js";
+import {
+    ComponentBase,
+    type ExtensionBase,
+    ReactiveComponent,
+} from "../stignite/index.js";
 import type { LanguageOption } from "../types/index.js";
 import { SETTINGS } from "../types/index.js";
 import { CalendarEventsSection } from "./CalendarEventsSection.js";
@@ -14,10 +18,10 @@ import { MonthYearPicker } from "./MonthYearPicker.js";
 
 @ReactiveComponent({
     dependencies: {
-        [SETTINGS.KEYS.CALENDAR_LANGUAGE]: ["month-service", "all-children"],
-        [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: ["month-service", "all-children"],
+        [SETTINGS.KEYS.CALENDAR_LANGUAGE]: ["month-service"],
+        [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: ["month-service"],
     },
-    priority: 8, // High priority as it coordinates children
+    priority: 8, // High priority as it coordinates services
     id: "calendar-popup",
 })
 export class CalendarPopup extends ComponentBase {
@@ -114,14 +118,6 @@ export class CalendarPopup extends ComponentBase {
                         this.refreshMonthHeader();
                     }
                 }
-            }
-
-            if (affectedParts.includes("all-children")) {
-                // Propagate changes to all child components
-                this.topHeader?.render({ changes, affectedParts });
-                this.monthHeader?.render({ changes, affectedParts });
-                this.grid?.render({ changes, affectedParts });
-                this.eventsSection?.render({ changes, affectedParts });
             }
         }, "Failed to update CalendarPopup");
     }

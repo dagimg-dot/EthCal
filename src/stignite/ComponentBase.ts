@@ -1,4 +1,5 @@
 import type Gio from "gi://Gio";
+import GLib from "gi://GLib";
 import { logger } from "../utils/logger.js";
 import { UpdateOrchestrator } from "./ReactiveBase.js";
 import type {
@@ -49,7 +50,6 @@ export abstract class ComponentBase {
      * Add GLib timer with automatic cleanup
      */
     protected addTimer(callback: () => void, intervalMs: number): number {
-        const GLib = imports.gi.GLib;
         const timerId = GLib.timeout_add(
             GLib.PRIORITY_DEFAULT,
             intervalMs,

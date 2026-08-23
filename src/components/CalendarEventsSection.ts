@@ -2,10 +2,10 @@ import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
 import Pango from "gi://Pango";
 import St from "gi://St";
-import Kenat from "kenat";
-import { ComponentBase, ReactiveComponent } from "stignite";
+import Kenat from "../lib/kenat.js";
 import type { KenatDate } from "../services/dayInfoService.js";
 import { createDayInfoService } from "../services/dayInfoService.js";
+import { ComponentBase, ReactiveComponent } from "../stignite/index.js";
 import type { LanguageOption } from "../types/index.js";
 import { SETTINGS } from "../types/index.js";
 
@@ -81,8 +81,6 @@ export class CalendarEventsSection extends ComponentBase {
                         this.updateEvents(this.currentDate);
                     }
                 }
-
-                console.log("called with language change");
             }
 
             if (affectedParts.includes("date-titles")) {
