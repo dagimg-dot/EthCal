@@ -2,7 +2,7 @@
 
 # ==============================================================================
 # EthCal GNOME Extension Installation Script
-# Downloads and installs the latest release from GitHub
+# Downloads and installs the latest release from GitHub, or installs local build
 # ==============================================================================
 
 # Colors for output
@@ -19,7 +19,6 @@ REPO="dagimg-dot/EthCal"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_DIR/build"
-ZIP_FILE="$BUILD_DIR/$UUID.shell-extension.zip"
 
 # Download settings
 DOWNLOAD_DIR="/tmp"
@@ -50,7 +49,7 @@ command_exists() {
 # Function to check GNOME Shell version
 get_gnome_version() {
     if command_exists gnome-shell; then
-        gnome-shell --version | grep -oP '\d+\.\d+' | head -1
+        gnome-shell --version | sed -E 's/[^0-9]*([0-9]+(\.[0-9]+)?).*/\1/' | head -1
     else
         echo "unknown"
     fi
@@ -58,12 +57,33 @@ get_gnome_version() {
 
 # Function to check if extension is already installed
 is_extension_installed() {
-    gnome-extensions list | grep -q "$UUID"
+    gnome-extensions list 2>/dev/null | grep -q "$UUID"
 }
 
 # Function to check if extension is enabled
 is_extension_enabled() {
-    gnome-extensions list --enabled | grep -q "$UUID"
+    gnome-extensions list --enabled 2>/dev/null | grep -q "$UUID"
+}
+
+# Function to find local built zip file
+find_local_zip() {
+    local version
+    version=$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' "$PROJECT_DIR/package.json" 2>/dev/null || echo "")
+
+    if [ -n "$version" ] && [ -f "$BUILD_DIR/$UUID.shell-extension-v$version.zip" ]; then
+        echo "$BUILD_DIR/$UUID.shell-extension-v$version.zip"
+        return 0
+    fi
+
+    # Fallback to any matching zip in build dir
+    local found_zip
+    found_zip=$(find "$BUILD_DIR" -maxdepth 1 -name "$UUID*.zip" 2>/dev/null | head -1)
+    if [ -n "$found_zip" ] && [ -f "$found_zip" ]; then
+        echo "$found_zip"
+        return 0
+    fi
+
+    return 1
 }
 
 # Function to get latest release download URL
@@ -77,41 +97,29 @@ get_latest_release_url() {
         exit 1
     fi
 
-    log_info "Fetching latest release information..."
+    log_info "Fetching latest release information from GitHub..."
 
     local response
     response=$(curl -s "$api_url" 2>/dev/null)
 
     if [ $? -ne 0 ] || [ -z "$response" ]; then
         log_error "Failed to fetch release information from GitHub"
-        log_error "This could be due to:"
-        log_error "  - No internet connection"
-        log_error "  - GitHub API rate limiting"
-        log_error "  - Network firewall blocking access"
-        log_error ""
         log_error "Try using --local option if you have a local build:"
         log_error "  $0 --local"
         exit 1
     fi
 
-    # Check if it's a valid JSON response
-    if ! echo "$response" | grep -q '"tag_name"'; then
-        log_error "Invalid response from GitHub API"
-        log_error "Response: $response"
-        exit 1
-    fi
-
     # Extract download URL for the shell extension zip
     local download_url
-    download_url=$(echo "$response" | grep -oP '"browser_download_url": "\K[^"]*\.shell-extension[^"]*\.zip[^"]*' | head -1)
+    download_url=$(echo "$response" | sed -n 's/.*"browser_download_url": "\([^"]*\.zip\)".*/\1/p' | grep -i "shell-extension" | head -1)
+
+    if [ -z "$download_url" ]; then
+        download_url=$(echo "$response" | sed -n 's/.*"browser_download_url": "\([^"]*\.zip\)".*/\1/p' | head -1)
+    fi
 
     if [ -z "$download_url" ]; then
         log_error "Could not find shell extension zip in latest release"
-        log_error "Available assets:"
-        echo "$response" | grep -oP '"name": "\K[^"]*' | grep -i "\.zip" | sed 's/^/  /'
-        log_error ""
-        log_error "Expected asset name pattern: *shell-extension*.zip"
-        log_error "Please check the GitHub releases page for the correct asset name"
+        log_error "Please check the GitHub releases page or use --local to install from source"
         exit 1
     fi
 
@@ -124,31 +132,20 @@ download_latest_release() {
     local download_url="$1"
 
     log_info "Downloading latest release..."
-
-    # Create download directory if it doesn't exist
     mkdir -p "$DOWNLOAD_DIR"
-
-    # Remove existing file if it exists
     rm -f "$DOWNLOAD_ZIP"
 
-    # Download the file
     if ! curl -L --fail --silent --show-error -o "$DOWNLOAD_ZIP" "$download_url"; then
         log_error "Failed to download extension zip from: $download_url"
-        log_error "This could be due to:"
-        log_error "  - Network connectivity issues"
-        log_error "  - Firewall blocking the download"
-        log_error "  - Invalid or expired download URL"
         exit 1
     fi
 
-    # Verify download
     if [ ! -f "$DOWNLOAD_ZIP" ] || [ ! -s "$DOWNLOAD_ZIP" ]; then
         log_error "Download failed or file is empty"
         exit 1
     fi
 
-    log_success "Extension downloaded successfully to $DOWNLOAD_ZIP"
-    ls -lh "$DOWNLOAD_ZIP"
+    log_success "Extension downloaded successfully"
 }
 
 # Main installation function
@@ -156,111 +153,100 @@ main() {
     echo "🚀 Installing $EXTENSION_NAME GNOME Extension"
     echo "==============================================="
 
-    # Check if running on GNOME
-    if [ "$XDG_CURRENT_DESKTOP" != "GNOME" ]; then
-        log_warning "Not running on GNOME desktop. This extension is designed for GNOME Shell."
-        read -p "Continue anyway? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            exit 1
-        fi
+    # Check if running in a GNOME environment
+    local is_gnome=false
+    if echo "${XDG_CURRENT_DESKTOP:-}" | grep -qi "gnome"; then
+        is_gnome=true
+    elif command_exists gnome-shell || command_exists gnome-extensions; then
+        is_gnome=true
     fi
 
-    # Check for required commands
+    if [ "$is_gnome" = false ]; then
+        log_warning "Desktop environment (${XDG_CURRENT_DESKTOP:-unknown}) might not be GNOME."
+        log_warning "This extension requires GNOME Shell."
+    fi
+
+    # Check for gnome-extensions CLI
     if ! command_exists gnome-extensions; then
-        log_error "gnome-extensions command not found. Please install GNOME Shell development tools."
-        log_error "On Ubuntu/Debian: sudo apt install gnome-shell-extension-tool"
-        log_error "On Fedora: sudo dnf install gnome-extensions-app"
+        log_error "gnome-extensions command not found."
+        log_error "Please install GNOME Shell extension tools:"
+        log_error "  - Ubuntu/Debian: sudo apt install gnome-shell-extension-tool or gnome-shell-extensions"
+        log_error "  - Fedora: sudo dnf install gnome-extensions-app"
+        log_error "  - Arch Linux: sudo pacman -S gnome-shell"
         exit 1
     fi
 
-    # Check GNOME Shell version
     GNOME_VERSION=$(get_gnome_version)
     if [ "$GNOME_VERSION" != "unknown" ]; then
         log_info "Detected GNOME Shell version: $GNOME_VERSION"
-    else
-        log_warning "Could not detect GNOME Shell version"
     fi
 
-    # Check if extension is already installed
-    if is_extension_installed; then
-        log_warning "Extension $UUID is already installed"
-        if is_extension_enabled; then
-            log_success "Extension is already enabled"
-        else
-            log_info "Extension is installed but not enabled"
-        fi
-        log_info "To enable it, restart GNOME Shell or log out and log back in"
-        exit 0
-    fi
+    local zip_to_install=""
 
     # Choose between local build or download
     if [ "$USE_LOCAL" = true ]; then
-        # Use local build
-        log_info "Using local build..."
+        log_info "Looking for local build..."
+        zip_to_install=$(find_local_zip || true)
 
-        if [ ! -f "$BUILD_DIR/$UUID.shell-extension.zip" ]; then
-            log_error "Local build not found at: $BUILD_DIR/$UUID.shell-extension.zip"
-            log_error "Run './scripts/build.sh' first or use without --local to download from GitHub"
+        if [ -z "$zip_to_install" ] || [ ! -f "$zip_to_install" ]; then
+            log_info "No build found in build/, running build script..."
+            if [ -x "$PROJECT_DIR/scripts/build.sh" ]; then
+                "$PROJECT_DIR/scripts/build.sh" --build
+                zip_to_install=$(find_local_zip || true)
+            fi
+        fi
+
+        if [ -z "$zip_to_install" ] || [ ! -f "$zip_to_install" ]; then
+            log_error "Local build not found. Run 'bun run build' or './scripts/build.sh' first."
             exit 1
         fi
 
-        ZIP_FILE="$BUILD_DIR/$UUID.shell-extension.zip"
-        log_info "Using local extension: $ZIP_FILE"
+        log_info "Using local extension package: $zip_to_install"
     else
-        # Download the latest release
-        log_info "Downloading latest $EXTENSION_NAME release..."
-
         DOWNLOAD_URL=$(get_latest_release_url)
-        if [ -z "$DOWNLOAD_URL" ]; then
-            log_error "Could not get download URL"
-            exit 1
-        fi
-
         download_latest_release "$DOWNLOAD_URL"
-
-        # Use the downloaded file for installation
-        ZIP_FILE="$DOWNLOAD_ZIP"
+        zip_to_install="$DOWNLOAD_ZIP"
     fi
 
     # Install the extension
-    log_info "Installing extension..."
-    if ! gnome-extensions install --force "$ZIP_FILE"; then
+    log_info "Installing extension package..."
+    if ! gnome-extensions install --force "$zip_to_install"; then
         log_error "Failed to install extension"
         exit 1
     fi
 
-    log_success "Extension installed successfully"
+    log_success "Extension files installed successfully"
 
-    # Clean up downloaded file if it exists
-    if [ -f "$DOWNLOAD_ZIP" ]; then
-        rm -f "$DOWNLOAD_ZIP"
-        log_info "Cleaned up temporary download file"
+    # Enable the extension
+    if is_extension_installed; then
+        log_info "Enabling extension $UUID..."
+        gnome-extensions enable "$UUID" 2>/dev/null || true
     fi
 
-    # Final success message
+    # Clean up downloaded file if needed
+    if [ -f "$DOWNLOAD_ZIP" ] && [ "$USE_LOCAL" = false ]; then
+        rm -f "$DOWNLOAD_ZIP"
+    fi
+
     echo
-    log_success "🎉 $EXTENSION_NAME has been successfully installed!"
-    log_info "Please restart GNOME Shell or log out and log back in to complete the installation"
-    log_info "After restarting, you should see the Ethiopian calendar indicator in your status bar"
-    log_info "Click the settings button inside the pop up to open the extension's settings"
+    log_success "🎉 $EXTENSION_NAME ($UUID) has been successfully installed and enabled!"
+    log_info "If this is a fresh install or major upgrade, you may need to reload GNOME Shell or log out and log back in."
 }
 
 # Show usage
 usage() {
     echo "Usage: $0 [OPTIONS]"
     echo
-    echo "Install EthCal GNOME Extension from GitHub releases"
+    echo "Install EthCal GNOME Extension from GitHub releases or local build"
     echo
     echo "Options:"
     echo "  -h, --help     Show this help message"
-    echo "  -f, --force    Force reinstall even if already installed"
-    echo "  -l, --local    Use local build instead of downloading from GitHub"
+    echo "  -l, --local    Use local build from build/ directory"
+    echo "  -f, --force    Force reinstall"
     echo
     echo "Examples:"
-    echo "  $0              # Download and install latest release"
-    echo "  $0 --local      # Use local build instead of downloading"
-    echo "  $0 --force      # Force reinstall"
+    echo "  $0              # Download and install latest release from GitHub"
+    echo "  $0 --local      # Install local build"
 }
 
 # Parse command line arguments
@@ -289,18 +275,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Handle force options
 if [ "$FORCE_REINSTALL" = true ] && is_extension_installed; then
-    log_info "Force reinstall requested. Removing existing extension..."
-    if gnome-extensions uninstall "$UUID" 2>/dev/null; then
-        log_success "Existing extension removed"
-    fi
+    log_info "Force reinstall requested. Removing existing installation..."
+    gnome-extensions uninstall "$UUID" 2>/dev/null || true
 fi
 
-if [ "$FORCE_BUILD" = true ]; then
-    log_info "Force build requested. Removing existing zip..."
-    rm -f "$ZIP_FILE"
-fi
-
-# Run main installation
 main
