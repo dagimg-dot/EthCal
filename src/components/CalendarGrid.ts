@@ -1,5 +1,4 @@
 import Clutter from "gi://Clutter";
-import type Gio from "gi://Gio";
 import St from "gi://St";
 import type { KenatDate } from "../services/dayInfoService.js";
 import type {
@@ -7,7 +6,6 @@ import type {
     MonthGridResult,
     MonthGridService,
 } from "../services/monthGrid.js";
-import { SETTINGS } from "../types/index.js";
 
 export class CalendarGrid {
     readonly widget: St.Widget;
@@ -15,7 +13,6 @@ export class CalendarGrid {
 
     constructor(
         private readonly monthService: MonthGridService,
-        private readonly settings: Gio.Settings,
         private readonly onDaySelected: (date: KenatDate) => void,
     ) {
         this.gridLayout = new Clutter.GridLayout({
@@ -38,15 +35,11 @@ export class CalendarGrid {
 
         data.headers.forEach((header, idx) => {
             const headerLabel = new St.Label({
-                text: header.slice(0, 3), // Short weekday names
+                text: header.slice(0, 3),
                 style_class: "calendar-header",
             });
             this.setCell(0, idx, headerLabel);
         });
-
-        const useGeez = this.settings.get_boolean(
-            SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-        );
 
         let row = 1;
         let col = 0;
@@ -58,20 +51,18 @@ export class CalendarGrid {
             this.setCell(
                 row,
                 col,
-                day ? this.createDayButton(day, useGeez) : new St.Label(),
+                day ? this.createDayButton(day) : new St.Label(),
             );
             col += 1;
         }
     }
 
-    private createDayButton(day: DayCell, useGeez: boolean): St.Button {
+    private createDayButton(day: DayCell): St.Button {
         const button = new St.Button({
             style_class: "calendar-day",
             can_focus: true,
         });
-        button.set_child(
-            new St.Label({ text: this.formatDayLabel(day, useGeez) }),
-        );
+        button.set_child(new St.Label({ text: day.label }));
 
         if (day.isToday) {
             button.add_style_class_name("calendar-today");
@@ -94,18 +85,9 @@ export class CalendarGrid {
             }
         }
 
-        button.connect("clicked", () =>
-            this.onDaySelected(day.ethiopianNumeric),
-        );
+        button.connect("clicked", () => this.onDaySelected(day.date));
 
         return button;
-    }
-
-    private formatDayLabel(day: DayCell, useGeez: boolean): string {
-        if (useGeez && typeof day.ethiopian.day === "string") {
-            return day.ethiopian.day;
-        }
-        return String(day.ethiopianNumeric.day);
     }
 
     private setCell(row: number, col: number, actor: St.Widget): void {

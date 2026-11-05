@@ -1,358 +1,113 @@
-import Kenat, { getFastingInfo, getHolidaysInMonth } from "../lib/kenat.js";
-
-// Define FastingKeys locally since it's not exported from the main package
-const FastingKeys = {
-    ABIY_TSOME: "ABIY_TSOME",
-    TSOME_HAWARYAT: "TSOME_HAWARYAT",
-    TSOME_NEBIYAT: "TSOME_NEBIYAT",
-    NINEVEH: "NINEVEH",
-    RAMADAN: "RAMADAN",
-    FILSETA: "FILSETA",
-    TSOME_DIHENET: "TSOME_DIHENET",
-} as const;
-
-export type Language = "amharic" | "english";
+import Kenat, {
+    FastingKeys,
+    getFastingInfo,
+    getHolidaysInMonth,
+} from "../lib/kenat.js";
+import type { LanguageOption } from "../types/index.js";
+import { logger } from "../utils/logger.js";
 
 export type KenatDate = { year: number; month: number; day: number };
 
-export interface DayHoliday {
-    key: string;
-    name: string; // localized
-    description: string; // localized
-    tags: string[];
-    movable: boolean;
-    ethiopian: KenatDate;
-    gregorian?: { year: number; month: number; day: number };
+export interface DayEvent {
+    title: string;
+    description: string;
 }
 
-export interface FastingContext {
-    key: string;
-    name: string; // localized
-    description: string; // localized
-    currentDay: number; // which day of the fast (1st, 2nd, etc.)
-    totalDays: number;
-    isActive: boolean;
-    period: {
-        start: KenatDate;
-        end: KenatDate;
-    } | null;
-    tags?: string[];
-}
+const toKenat = ({ year, month, day }: KenatDate) =>
+    new Kenat(`${year}/${month}/${day}`);
 
-export interface DayInformation {
-    ethiopian: KenatDate;
-    gregorian: KenatDate;
-    holidays: DayHoliday[];
-    fastingPeriods: FastingContext[];
-    isToday: boolean;
-    weekday: number;
-    weekdayName: string;
-}
+const dateValue = ({ year, month, day }: KenatDate) =>
+    year * 10000 + month * 100 + day;
+
+/** Days from `from` to `to`, counting both ends. */
+const dayCount = (from: KenatDate, to: KenatDate) =>
+    Math.max(1, toKenat(to).diffInDays(toKenat(from)) + 1);
+
+/** Check if a date is a Tsome Dihnet fasting day (Wed/Fri). */
+const isWednesdayOrFriday = (date: KenatDate) => {
+    const { year, month, day } = toKenat(date).getGregorian();
+    const weekday = new Date(year, month - 1, day).getDay();
+    return weekday === 3 || weekday === 5;
+};
 
 export class DayInfoService {
-    private language: Language;
+    constructor(private language: LanguageOption) {}
 
-    constructor(language: Language = "amharic") {
+    /** Update the language setting. */
+    updateLanguage(language: LanguageOption): void {
         this.language = language;
     }
 
-    /**
-     * Update the language setting
-     */
-    updateLanguage(language: Language): void {
-        this.language = language;
+    /** Get all holidays and fasts for a day. */
+    getDayEvents(date: KenatDate): DayEvent[] {
+        return [...this.getHolidays(date), ...this.getFasts(date)];
     }
 
-    /**
-     * Get comprehensive information for a specific Ethiopian date
-     */
-    getDayInformation(ethiopianDate: KenatDate): DayInformation {
-        const kenat = new Kenat(
-            `${ethiopianDate.year}/${ethiopianDate.month}/${ethiopianDate.day}`,
-        );
-        const gregorian = kenat.getGregorian();
-        const today = Kenat.now().getEthiopian();
-
-        const isToday =
-            ethiopianDate.year === today.year &&
-            ethiopianDate.month === today.month &&
-            ethiopianDate.day === today.day;
-
-        const weekday = this.getWeekday(ethiopianDate);
-        const weekdayName = this.getWeekdayName(weekday);
-
-        const holidays = this.getDayHolidays(ethiopianDate);
-        const fastingPeriods = this.getDayFastingContext(ethiopianDate);
-
-        return {
-            ethiopian: ethiopianDate,
-            gregorian,
-            holidays,
-            fastingPeriods,
-            isToday,
-            weekday,
-            weekdayName,
-        };
-    }
-
-    /**
-     * Get holidays for a specific date
-     */
-    private getDayHolidays(ethiopianDate: KenatDate): DayHoliday[] {
+    /** Get holidays for a specific date. */
+    private getHolidays(date: KenatDate): DayEvent[] {
         try {
-            const monthHolidays = getHolidaysInMonth(
-                ethiopianDate.year,
-                ethiopianDate.month,
-                {
-                    lang: this.language,
-                },
-            );
-
-            return monthHolidays
-                .filter(
-                    (holiday) => holiday.ethiopian.day === ethiopianDate.day,
-                )
+            return getHolidaysInMonth(date.year, date.month, {
+                lang: this.language,
+            })
+                .filter((holiday) => holiday.ethiopian.day === date.day)
                 .map((holiday) => ({
-                    ...holiday,
-                    name: holiday.name || holiday.key,
+                    title: holiday.name || holiday.key,
                     description: holiday.description || "",
                 }));
         } catch (error) {
-            console.error("Error getting holidays:", error);
+            logger.error("Error getting holidays", error);
             return [];
         }
     }
 
-    /**
-     * Get fasting context for a specific date
-     */
-    private getDayFastingContext(ethiopianDate: KenatDate): FastingContext[] {
-        const fastingPeriods: FastingContext[] = [];
-
-        // Check each fasting period
-        Object.values(FastingKeys).forEach((fastKey) => {
+    private getFasts(date: KenatDate): DayEvent[] {
+        return Object.values(FastingKeys).flatMap((fastKey) => {
             try {
-                const fastingInfo = getFastingInfo(
-                    fastKey as
-                        | "ABIY_TSOME"
-                        | "TSOME_HAWARYAT"
-                        | "TSOME_NEBIYAT"
-                        | "NINEVEH"
-                        | "RAMADAN",
-                    ethiopianDate.year,
-                    {
-                        lang: this.language,
-                    },
-                );
-
-                if (!fastingInfo?.period) {
-                    // Handle weekly fasts (Tsome Dihnet)
-                    if (fastKey === FastingKeys.TSOME_DIHENET) {
-                        const isFastingDay =
-                            this.isTsomeDihnetFastDay(ethiopianDate);
-                        if (isFastingDay) {
-                            fastingPeriods.push({
-                                key: fastKey as string,
-                                name: fastingInfo?.name || "Fast of Salvation",
-                                description:
-                                    fastingInfo?.description ||
-                                    "Weekly fast on Wednesdays and Fridays",
-                                currentDay: 1, // Weekly fasts don't have day counts
-                                totalDays: 1,
-                                isActive: true,
-                                period: null,
-                            });
-                        }
-                    }
-                    return;
-                }
-
-                const { period } = fastingInfo;
-
-                // Type assertion for period start and end
-                const periodStart = period.start as {
-                    year: number;
-                    month: number;
-                    day: number;
-                };
-                const periodEnd = period.end as {
-                    year: number;
-                    month: number;
-                    day: number;
-                };
-
-                const isInPeriod = this.isDateInRange(
-                    ethiopianDate,
-                    periodStart,
-                    periodEnd,
-                );
-
-                if (isInPeriod) {
-                    const currentDay = this.calculateDayInPeriod(
-                        ethiopianDate,
-                        periodStart,
-                    );
-                    const totalDays = this.calculateTotalDays(
-                        periodStart,
-                        periodEnd,
-                    );
-
-                    fastingPeriods.push({
-                        key: fastKey as string,
-                        name: fastingInfo.name,
-                        description: fastingInfo.description,
-                        currentDay,
-                        totalDays,
-                        isActive: true,
-                        period: {
-                            start: periodStart,
-                            end: periodEnd,
-                        },
-                    });
-                }
+                const fast = this.getFast(fastKey, date);
+                return fast ? [fast] : [];
             } catch (error) {
-                console.error(
-                    `Error getting fasting info for ${fastKey}:`,
+                logger.error(
+                    `Error getting fasting info for ${fastKey}`,
                     error,
                 );
+                return [];
             }
         });
-
-        return fastingPeriods;
     }
 
-    /**
-     * Check if a date falls within a range
-     */
-    private isDateInRange(
-        date: KenatDate,
-        start: KenatDate,
-        end: KenatDate,
-    ): boolean {
-        const dateValue = date.year * 10000 + date.month * 100 + date.day;
-        const startValue = start.year * 10000 + start.month * 100 + start.day;
-        const endValue = end.year * 10000 + end.month * 100 + end.day;
+    /** Get the fast a date falls in for one fasting key, if any. */
+    private getFast(fastKey: string, date: KenatDate): DayEvent | null {
+        const info = getFastingInfo(fastKey, date.year, {
+            lang: this.language,
+        });
 
-        return dateValue >= startValue && dateValue <= endValue;
-    }
-
-    /**
-     * Calculate which day of the fasting period a date represents
-     */
-    private calculateDayInPeriod(date: KenatDate, start: KenatDate): number {
-        const kenat = new Kenat(`${date.year}/${date.month}/${date.day}`);
-        const startKenat = new Kenat(
-            `${start.year}/${start.month}/${start.day}`,
-        );
-
-        // Calculate days difference using Kenat's diffInDays method
-        const daysDiff = kenat.diffInDays(startKenat);
-        return Math.max(1, daysDiff + 1);
-    }
-
-    /**
-     * Calculate total days in a fasting period
-     */
-    private calculateTotalDays(start: KenatDate, end: KenatDate): number {
-        const startKenat = new Kenat(
-            `${start.year}/${start.month}/${start.day}`,
-        );
-        const endKenat = new Kenat(`${end.year}/${end.month}/${end.day}`);
-
-        // Calculate days difference using Kenat's diffInDays method
-        const daysDiff = endKenat.diffInDays(startKenat);
-        return Math.max(1, daysDiff + 1);
-    }
-
-    /**
-     * Check if a date is a Tsome Dihnet fasting day (Wed/Fri)
-     */
-    private isTsomeDihnetFastDay(ethiopianDate: KenatDate): boolean {
-        const weekday = this.getWeekday(ethiopianDate);
-        // Wednesday = 3, Friday = 5 (0-indexed)
-        return weekday === 3 || weekday === 5;
-    }
-
-    /**
-     * Get weekday number (0 = Sunday, 1 = Monday, etc.)
-     */
-    private getWeekday(ethiopianDate: KenatDate): number {
-        const kenat = new Kenat(
-            `${ethiopianDate.year}/${ethiopianDate.month}/${ethiopianDate.day}`,
-        );
-        const gregorian = kenat.getGregorian();
-        const jsDate = new Date(
-            gregorian.year,
-            gregorian.month - 1,
-            gregorian.day,
-        );
-        return jsDate.getDay();
-    }
-
-    /**
-     * Get localized weekday name
-     */
-    private getWeekdayName(weekday: number): string {
-        const weekdays = {
-            amharic: ["እሑድ", "ሰኞ", "ማክሰኞ", "ረቡዕ", "ሐሙስ", "ዓርብ", "ቅዳሜ"],
-            english: [
-                "Sunday",
-                "Monday",
-                "Tuesday",
-                "Wednesday",
-                "Thursday",
-                "Friday",
-                "Saturday",
-            ],
-        };
-        return weekdays[this.language][weekday] || "";
-    }
-
-    /**
-     * Format fasting context for display
-     */
-    formatFastingContext(fasting: FastingContext): string {
-        if (fasting.key === FastingKeys.TSOME_DIHENET) {
-            return fasting.name;
+        if (!info?.period) {
+            if (
+                fastKey !== FastingKeys.TSOME_DIHENET ||
+                !isWednesdayOrFriday(date)
+            ) {
+                return null;
+            }
+            return {
+                title: info?.name || "Fast of Salvation",
+                description:
+                    info?.description ||
+                    "Weekly fast on Wednesdays and Fridays",
+            };
         }
 
-        const fastingString = `${fasting.currentDay} / ${fasting.totalDays} - ${fasting.name}`;
+        const { start, end } = info.period;
+        if (
+            dateValue(date) < dateValue(start) ||
+            dateValue(date) > dateValue(end)
+        ) {
+            return null;
+        }
 
-        return `${this.language === "amharic" ? "ቀን" : "Day"} ${fastingString}`;
-    }
-
-    /**
-     * Get all events for a day in a structured format
-     */
-    getDayEvents(ethiopianDate: KenatDate) {
-        const dayInfo = this.getDayInformation(ethiopianDate);
-
-        const events = [
-            ...dayInfo.holidays.map((h) => ({
-                type: "holiday" as const,
-                title: h.name,
-                description: h.description,
-                tags: h.tags,
-            })),
-            ...dayInfo.fastingPeriods.map((f) => ({
-                type: "fasting" as const,
-                title: this.formatFastingContext(f),
-                description: f.description,
-                tags: f.tags || [],
-            })),
-        ];
-
+        const dayWord = this.language === "amharic" ? "ቀን" : "Day";
         return {
-            dayInfo,
-            events,
-            hasEvents: events.length > 0,
+            title: `${dayWord} ${dayCount(start, date)} / ${dayCount(start, end)} - ${info.name}`,
+            description: info.description,
         };
     }
-}
-
-// Convenience function
-export function createDayInfoService(
-    language: Language = "amharic",
-): DayInfoService {
-    return new DayInfoService(language);
 }

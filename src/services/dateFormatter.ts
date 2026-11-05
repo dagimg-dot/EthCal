@@ -20,53 +20,30 @@ export interface TokenValue {
     m: number | string; // minute, same as mm or Geez numeral
 }
 
+const isTokenKey = (
+    token: string,
+    values: TokenValue,
+): token is keyof TokenValue => token in values;
+
 export class DateFormatterService {
-    private options: DateFormatterOptions;
-    private kenat: Kenat;
-    private tokenCache: Map<string, string> = new Map();
+    constructor(private options: DateFormatterOptions) {}
 
-    constructor(options: DateFormatterOptions) {
-        this.options = options;
-        this.kenat = new Kenat();
+    /** Format a date string using custom tokens */
+    format(formatString: string, date: Kenat): string {
+        if (!formatString) return "";
+        return this.replaceTokens(formatString, this.getTokenValues(date));
     }
 
-    /**
-     * Format a date string using custom tokens
-     * @param formatString - String with tokens like "dday, mnam dd, year"
-     * @param date - Optional specific date, defaults to current date
-     * @returns Formatted string
-     */
-    format(formatString: string, date?: Kenat): string {
-        if (!formatString || typeof formatString !== "string") {
-            return "";
-        }
-
-        // Use provided date or current date
-        const kenat = date || this.kenat;
-
-        // Get token values for the date
-        const tokenValues = this.getTokenValues(kenat);
-
-        // Replace tokens in the format string
-        return this.replaceTokens(formatString, tokenValues);
-    }
-
-    /**
-     * Get all available token values for a given date
-     */
+    /** Get all available token values for a given date */
     private getTokenValues(kenat: Kenat): TokenValue {
         const ethiopian = kenat.getEthiopian();
 
-        // Get weekday number (0 = Sunday, 1 = Monday, etc.)
         const weekday = this.getWeekdayNumber(ethiopian);
 
-        // Get weekday name
         const weekdayName = this.getWeekdayName(weekday);
 
-        // Get month name
         const monthName = this.getMonthName(ethiopian.month);
 
-        // Get time period
         const timePeriod = this.getTimePeriod(
             kenat.time.hour,
             kenat.time.period,
@@ -101,26 +78,21 @@ export class DateFormatterService {
         };
     }
 
-    /**
-     * Replace tokens in format string with actual values
-     */
+    /** Replace tokens in format string with actual values */
     private replaceTokens(
         formatString: string,
         tokenValues: TokenValue,
     ): string {
-        // Use regex to find all tokens (word characters)
         return formatString.replace(
             /\b(dnum|dday|dd|mnum|mnam|year|tp|hh|h|mm|m)\b/g,
-            (token) => {
-                const value = tokenValues[token as keyof TokenValue];
-                return value !== undefined ? String(value) : token;
-            },
+            (token) =>
+                isTokenKey(token, tokenValues)
+                    ? String(tokenValues[token])
+                    : token,
         );
     }
 
-    /**
-     * Get weekday number (0 = Sunday, 1 = Monday, etc.)
-     */
+    /** Get weekday number (0 = Sunday, 1 = Monday, etc.) */
     private getWeekdayNumber(ethiopian: {
         year: number;
         month: number;
@@ -138,9 +110,7 @@ export class DateFormatterService {
         return jsDate.getDay();
     }
 
-    /**
-     * Get localized weekday name
-     */
+    /** Get localized weekday name */
     private getWeekdayName(weekday: number): string {
         const weekdays = {
             amharic: ["እሑድ", "ሰኞ", "ማክሰኞ", "ረቡዕ", "ሐሙስ", "ዓርብ", "ቅዳሜ"],
@@ -157,9 +127,7 @@ export class DateFormatterService {
         return weekdays[this.options.language][weekday] || "";
     }
 
-    /**
-     * Get localized month name
-     */
+    /** Get localized month name */
     private getMonthName(month: number): string {
         const kenat = new Kenat(`2024/${month}/1`);
 
@@ -168,12 +136,10 @@ export class DateFormatterService {
                 lang: this.options.language,
                 useGeez: this.options.useGeezNumerals,
             })
-            .split(" ")[0]; // Extract just the month name
+            .split(" ")[0];
     }
 
-    /**
-     * Get time period (day/night)
-     */
+    /** Get time period (day/night) */
     private getTimePeriod(hour: number, period: string): string {
         if (this.options.language === "amharic") {
             if (hour >= 1 && hour < 6 && period === "day") return "ጠዋት";
@@ -192,125 +158,8 @@ export class DateFormatterService {
         }
     }
 
-    /**
-     * Update options (useful when settings change)
-     */
+    /** Update options (useful when settings change) */
     updateOptions(options: Partial<DateFormatterOptions>): void {
         this.options = { ...this.options, ...options };
-        // Clear cache when options change
-        this.tokenCache.clear();
     }
-
-    /**
-     * Get available tokens for documentation/help
-     */
-    getAvailableTokens(): string[] {
-        return [
-            "dnum",
-            "dday",
-            "dd",
-            "mnum",
-            "mnam",
-            "year",
-            "tp",
-            "hh",
-            "h",
-            "mm",
-            "m",
-        ];
-    }
-
-    /**
-     * Test a format string and return preview with validation
-     */
-    testFormat(
-        formatString: string,
-        testDate?: Kenat,
-    ): {
-        isValid: boolean;
-        errors: string[];
-        preview: string;
-        tokens: string[];
-    } {
-        const validation = this.validateFormat(formatString);
-
-        let preview = "";
-        let tokens: string[] = [];
-
-        if (validation.isValid) {
-            try {
-                // Extract tokens used in the format
-                const tokenRegex =
-                    /\b(dnum|dday|dd|mnum|mnam|year|tp|hh|h|mm|m)\b/g;
-                const matches = formatString.match(tokenRegex);
-                tokens = matches ? [...new Set(matches)] : []; // Remove duplicates
-
-                // Generate preview
-                preview = this.format(formatString, testDate);
-            } catch (error) {
-                validation.errors.push(
-                    `Preview error: ${error instanceof Error ? error.message : "Unknown error"}`,
-                );
-            }
-        }
-
-        return {
-            isValid: validation.isValid,
-            errors: validation.errors,
-            preview,
-            tokens,
-        };
-    }
-
-    /**
-     * Validate a format string
-     */
-    validateFormat(formatString: string): {
-        isValid: boolean;
-        errors: string[];
-    } {
-        const errors: string[] = [];
-
-        if (!formatString || typeof formatString !== "string") {
-            errors.push("Format string must be a non-empty string");
-            return { isValid: false, errors };
-        }
-
-        // Check for unknown tokens
-        const validTokens = new Set([
-            "dnum",
-            "dday",
-            "dd",
-            "mnum",
-            "mnam",
-            "year",
-            "tp",
-            "hh",
-            "h",
-            "mm",
-            "m",
-        ]);
-        const allTokens = formatString.match(/\b[a-zA-Z]+\b/g) || [];
-        const unknownTokens = allTokens.filter(
-            (token) => !validTokens.has(token),
-        );
-
-        if (unknownTokens.length > 0) {
-            errors.push(`Unknown tokens: ${unknownTokens.join(", ")}`);
-        }
-
-        return {
-            isValid: errors.length === 0,
-            errors,
-        };
-    }
-}
-
-/**
- * Create a DateFormatterService instance
- */
-export function createDateFormatterService(
-    options: DateFormatterOptions,
-): DateFormatterService {
-    return new DateFormatterService(options);
 }

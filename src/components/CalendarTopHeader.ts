@@ -2,7 +2,7 @@ import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
 import St from "gi://St";
 import Kenat from "../lib/kenat.js";
-import { type LanguageOption, SETTINGS } from "../types/index.js";
+import { readLanguage, readUseGeez } from "../utils/settings.js";
 
 export class CalendarTopHeader {
     readonly widget: St.BoxLayout;
@@ -41,7 +41,7 @@ export class CalendarTopHeader {
         settingsBtn.connect("clicked", onSettingsClicked);
 
         topRow.add_child(this.weekdayTitle);
-        topRow.add_child(new St.Widget({ x_expand: true })); // Spacer
+        topRow.add_child(new St.Widget({ x_expand: true }));
         topRow.add_child(settingsBtn);
         this.widget.add_child(topRow);
 
@@ -54,12 +54,8 @@ export class CalendarTopHeader {
 
     refresh(): void {
         const today = new Kenat();
-        const language = this.settings.get_string(
-            SETTINGS.KEYS.CALENDAR_LANGUAGE,
-        ) as LanguageOption;
-        const useGeezNumerals = this.settings.get_boolean(
-            SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-        );
+        const language = readLanguage(this.settings);
+        const useGeezNumerals = readUseGeez(this.settings);
 
         this.weekdayTitle.text = today
             .formatWithWeekday(language, false)

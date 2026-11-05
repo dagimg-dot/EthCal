@@ -5,8 +5,7 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "../lib/kenat.js";
 import type { KenatDate } from "../services/dayInfoService.js";
 import { MonthGridService } from "../services/monthGrid.js";
-import type { LanguageOption } from "../types/index.js";
-import { SETTINGS } from "../types/index.js";
+import { readLanguage, readUseGeez } from "../utils/settings.js";
 import { CalendarEventsSection } from "./CalendarEventsSection.js";
 import { CalendarGrid } from "./CalendarGrid.js";
 import { CalendarMonthHeader } from "./CalendarMonthHeader.js";
@@ -43,9 +42,8 @@ export class CalendarPopup {
         this.item.add_child(this.outer);
 
         this.monthService = new MonthGridService({
-            weekStart: 1,
-            weekdayLang: this.language(),
-            useGeez: this.useGeez(),
+            weekdayLang: readLanguage(this.settings),
+            useGeez: readUseGeez(this.settings),
         });
 
         this.topHeader = new CalendarTopHeader(settings, openPreferences);
@@ -54,7 +52,7 @@ export class CalendarPopup {
             () => this.onNextMonth(),
             () => this.toggleMonthYearPicker(),
         );
-        this.grid = new CalendarGrid(this.monthService, settings, (date) =>
+        this.grid = new CalendarGrid(this.monthService, (date) =>
             this.onDateSelected(date),
         );
         this.eventsSection = new CalendarEventsSection(settings);
@@ -69,8 +67,8 @@ export class CalendarPopup {
 
     /** Re-render every part from the current settings and navigation state. */
     refresh(): void {
-        this.monthService.weekdayLang = this.language();
-        this.monthService.useGeez = this.useGeez();
+        this.monthService.weekdayLang = readLanguage(this.settings);
+        this.monthService.useGeez = readUseGeez(this.settings);
 
         this.topHeader.refresh();
 
@@ -137,7 +135,6 @@ export class CalendarPopup {
             );
         }
 
-        // The picker sits right below the month header
         const index = this.outer
             .get_children()
             .indexOf(this.monthHeader.widget);
@@ -160,16 +157,6 @@ export class CalendarPopup {
         this.monthService.setDate(month, year);
         this.refresh();
         this.hideMonthYearPicker();
-    }
-
-    private language(): LanguageOption {
-        return this.settings.get_string(
-            SETTINGS.KEYS.CALENDAR_LANGUAGE,
-        ) as LanguageOption;
-    }
-
-    private useGeez(): boolean {
-        return this.settings.get_boolean(SETTINGS.KEYS.USE_GEEZ_NUMERALS);
     }
 
     destroy(): void {

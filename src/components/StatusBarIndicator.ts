@@ -4,19 +4,19 @@ import GLib from "gi://GLib";
 import St from "gi://St";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
-import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
+import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "../lib/kenat.js";
-import {
-    createDateFormatterService,
-    type DateFormatterService,
-} from "../services/dateFormatter.js";
-import type {
-    FormatOption,
-    LanguageOption,
-    PositionOption,
-} from "../types/index.js";
+import { DateFormatterService } from "../services/dateFormatter.js";
+import type { FormatOption, PositionOption } from "../types/index.js";
 import { SETTINGS } from "../types/index.js";
 import { logger } from "../utils/logger.js";
+import {
+    readCustomFormat,
+    readFormat,
+    readLanguage,
+    readPosition,
+    readUseGeez,
+} from "../utils/settings.js";
 import { CalendarPopup } from "./CalendarPopup.js";
 
 /** The panel's private position boxes, which the typings leave out. */
@@ -46,7 +46,6 @@ export class StatusBarIndicator {
     private readonly label: St.Label;
     private readonly popup: CalendarPopup;
     private readonly dateFormatter: DateFormatterService;
-    private readonly settingsChangedId: number;
     private clockId = 0;
 
     constructor(
@@ -58,31 +57,37 @@ export class StatusBarIndicator {
         this.indicator.add_child(this.label);
 
         this.popup = new CalendarPopup(settings, openPreferences);
-        const menu = this.indicator.menu as PopupMenu.PopupMenu;
+        const menu = this.indicator.menu;
+        if (!(menu instanceof PopupMenu.PopupMenu)) {
+            throw new Error("Panel button was created without a menu");
+        }
         menu.addMenuItem(this.popup.item);
         Main.panel.menuManager.addMenu(menu, 1);
 
-        // Every open starts from the current month with the picker closed
-        menu.actor.connect("show", () => {
-            this.popup.resetToCurrentMonth();
-            this.popup.hidePickerIfVisible();
+        menu.actor.connectObject(
+            "show",
+            () => {
+                this.popup.resetToCurrentMonth();
+                this.popup.hidePickerIfVisible();
+            },
+            this,
+        );
+
+        this.dateFormatter = new DateFormatterService({
+            language: readLanguage(this.settings),
+            useGeezNumerals: readUseGeez(this.settings),
         });
 
-        this.dateFormatter = createDateFormatterService({
-            language: this.language(),
-            useGeezNumerals: this.useGeez(),
-        });
-
-        // Any setting change refreshes everything it can affect; only the position moves the indicator
-        this.settingsChangedId = settings.connect(
+        settings.connectObject(
             "changed",
-            (_settings, key) => {
+            (_settings: Gio.Settings, key: string) => {
                 if (key === SETTINGS.KEYS.STATUS_BAR_POSITION) {
                     this.applyPosition();
                 } else {
                     this.refresh();
                 }
             },
+            this,
         );
 
         this.applyPosition();
@@ -104,10 +109,9 @@ export class StatusBarIndicator {
     }
 
     private applyPosition(): void {
-        const position = this.settings.get_string(
-            SETTINGS.KEYS.STATUS_BAR_POSITION,
-        ) as PositionOption;
-        const box = (Main.panel as unknown as PanelBoxes)[PANEL_BOX[position]];
+        const position = readPosition(this.settings);
+        const panel: typeof Main.panel & Partial<PanelBoxes> = Main.panel;
+        const box = panel[PANEL_BOX[position]];
         if (!box) return;
 
         const container = this.indicator.container;
@@ -118,38 +122,24 @@ export class StatusBarIndicator {
 
     private updateLabel(): void {
         this.dateFormatter.updateOptions({
-            language: this.language(),
-            useGeezNumerals: this.useGeez(),
+            language: readLanguage(this.settings),
+            useGeezNumerals: readUseGeez(this.settings),
         });
 
-        const format = this.settings.get_string(
-            SETTINGS.KEYS.STATUS_BAR_FORMAT,
-        ) as FormatOption;
+        const format = readFormat(this.settings);
         const formatString =
             format === "custom"
-                ? this.settings.get_string(
-                      SETTINGS.KEYS.STATUS_BAR_CUSTOM_FORMAT,
-                  )
+                ? readCustomFormat(this.settings)
                 : FORMAT_STRINGS[format];
 
         this.label.text = this.dateFormatter.format(formatString, new Kenat());
-    }
-
-    private language(): LanguageOption {
-        return this.settings.get_string(
-            SETTINGS.KEYS.CALENDAR_LANGUAGE,
-        ) as LanguageOption;
-    }
-
-    private useGeez(): boolean {
-        return this.settings.get_boolean(SETTINGS.KEYS.USE_GEEZ_NUMERALS);
     }
 
     destroy(): void {
         if (this.clockId) GLib.source_remove(this.clockId);
         this.clockId = 0;
 
-        this.settings.disconnect(this.settingsChangedId);
+        this.settings.disconnectObject(this);
         this.popup.destroy();
         this.indicator.destroy();
     }

@@ -2,8 +2,7 @@ import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
 import St from "gi://St";
 import { toGeez } from "../lib/kenat.js";
-import type { LanguageOption } from "../types/index.js";
-import { SETTINGS } from "../types/index.js";
+import { readLanguage, readUseGeez } from "../utils/settings.js";
 
 export class MonthYearPicker {
     readonly widget: St.BoxLayout;
@@ -64,20 +63,17 @@ export class MonthYearPicker {
     private updateMonthSlider(): void {
         for (const child of this.monthSlider.get_children()) child.destroy();
 
-        // Create month items (1-13 for Ethiopian calendar)
         for (let month = 1; month <= 13; month++) {
             const monthItem = this.createMonthItem(month);
             this.monthSlider.add_child(monthItem);
         }
 
-        // Scroll to current month
         this.scrollToCurrentMonth();
     }
 
     private updateYearSlider(): void {
         for (const child of this.yearSlider.get_children()) child.destroy();
 
-        // Create year items (range around current year)
         const startYear = this.currentYear - 10;
         const endYear = this.currentYear + 10;
 
@@ -86,7 +82,6 @@ export class MonthYearPicker {
             this.yearSlider.add_child(yearItem);
         }
 
-        // Scroll to current year
         this.scrollToCurrentYear();
     }
 
@@ -101,13 +96,11 @@ export class MonthYearPicker {
             can_focus: true,
         });
 
-        // Add click handler
         monthItem.connect("button-press-event", () => {
             this.selectMonth(month);
             return Clutter.EVENT_STOP;
         });
 
-        // Add hover effect
         monthItem.connect("enter-event", () => {
             if (!isSelected) {
                 monthItem.add_style_class_name("floating-picker-item-hover");
@@ -132,13 +125,11 @@ export class MonthYearPicker {
             can_focus: true,
         });
 
-        // Add click handler
         yearItem.connect("button-press-event", () => {
             this.selectYear(year);
             return Clutter.EVENT_STOP;
         });
 
-        // Add hover effect
         yearItem.connect("enter-event", () => {
             if (!isSelected) {
                 yearItem.add_style_class_name("floating-picker-item-hover");
@@ -153,11 +144,8 @@ export class MonthYearPicker {
     }
 
     private getMonthName(month: number): string {
-        const language = this.settings.get_string(
-            SETTINGS.KEYS.CALENDAR_LANGUAGE,
-        ) as LanguageOption;
+        const language = readLanguage(this.settings);
 
-        // Use the same month names as MonthGridService
         const monthNames = {
             amharic: [
                 "መስከረም",
@@ -196,9 +184,7 @@ export class MonthYearPicker {
     }
 
     private formatYear(year: number): string {
-        const useGeez = this.settings.get_boolean(
-            SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-        );
+        const useGeez = readUseGeez(this.settings);
 
         if (useGeez) {
             return toGeez(year);
@@ -220,30 +206,16 @@ export class MonthYearPicker {
     }
 
     private scrollToCurrentMonth(): void {
-        // Calculate scroll position to center current month
-        const itemHeight = 32; // Approximate item height
+        const itemHeight = 32;
         const scrollPosition = (this.currentMonth - 1) * itemHeight;
-
-        // Access the scroll adjustment through type assertion
-        // biome-ignore lint/suspicious/noExplicitAny: type error bypass
-        const scrollView = this.monthContainer as any;
-        if (scrollView.vscroll?.adjustment) {
-            scrollView.vscroll.adjustment.value = scrollPosition;
-        }
+        this.monthContainer.vadjustment.value = scrollPosition;
     }
 
     private scrollToCurrentYear(): void {
-        // Calculate scroll position to center current year
-        const itemHeight = 32; // Approximate item height
+        const itemHeight = 32;
         const startYear = this.currentYear - 10;
         const scrollPosition = (this.currentYear - startYear) * itemHeight;
-
-        // Access the scroll adjustment through type assertion
-        // biome-ignore lint/suspicious/noExplicitAny: type error bypass
-        const scrollView = this.yearContainer as any;
-        if (scrollView.vscroll?.adjustment) {
-            scrollView.vscroll.adjustment.value = scrollPosition;
-        }
+        this.yearContainer.vadjustment.value = scrollPosition;
     }
 
     setCurrentDate(month: number, year: number): void {

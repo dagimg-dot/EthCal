@@ -4,12 +4,17 @@ import Pango from "gi://Pango";
 import St from "gi://St";
 import Kenat from "../lib/kenat.js";
 import {
-    createDayInfoService,
-    type DayInfoService,
+    type DayEvent,
+    DayInfoService,
     type KenatDate,
 } from "../services/dayInfoService.js";
 import type { LanguageOption } from "../types/index.js";
-import { SETTINGS } from "../types/index.js";
+import { readLanguage, readUseGeez } from "../utils/settings.js";
+
+const TEXTS = {
+    today: { amharic: "ዛሬ", english: "Today" },
+    noEvents: { amharic: "ምንም ማስታወሻ አልተገኘም", english: "No events found" },
+} as const satisfies Record<string, Record<LanguageOption, string>>;
 
 export class CalendarEventsSection {
     readonly widget: St.BoxLayout;
@@ -35,11 +40,11 @@ export class CalendarEventsSection {
         });
         this.widget.add_child(this.eventsList);
 
-        this.dayInfoService = createDayInfoService(this.language());
+        this.dayInfoService = new DayInfoService(readLanguage(this.settings));
     }
 
     updateEvents(date: KenatDate): void {
-        this.dayInfoService.updateLanguage(this.language());
+        this.dayInfoService.updateLanguage(readLanguage(this.settings));
         this.updateTitle(date);
         this.updateEventsList(date);
     }
@@ -50,10 +55,10 @@ export class CalendarEventsSection {
 
     private updateEventsList(date: KenatDate): void {
         for (const child of this.eventsList.get_children()) child.destroy();
-
-        // Get and display events for the selected date
-        const dayEvents = this.dayInfoService.getDayEvents(date);
-        this.renderEventList(dayEvents.events, this.eventsList);
+        this.renderEventList(
+            this.dayInfoService.getDayEvents(date),
+            this.eventsList,
+        );
     }
 
     private formatDate(day: number, month: number, year: number): string {
@@ -61,17 +66,14 @@ export class CalendarEventsSection {
         const kenat = new Kenat(dateString);
 
         const formattedDate = kenat.format({
-            lang: this.language(),
-            useGeez: this.settings.get_boolean(SETTINGS.KEYS.USE_GEEZ_NUMERALS),
+            lang: readLanguage(this.settings),
+            useGeez: readUseGeez(this.settings),
         });
 
         return `${month} - ${formattedDate}`;
     }
 
-    private renderEventList(
-        events: { title: string; description: string }[],
-        container: St.BoxLayout,
-    ): void {
+    private renderEventList(events: DayEvent[], container: St.BoxLayout): void {
         if (events.length > 0) {
             events.forEach((event) => {
                 const eventRow = new St.BoxLayout({
@@ -105,7 +107,6 @@ export class CalendarEventsSection {
                     x_align: Clutter.ActorAlign.START,
                 });
 
-                // Enable text wrapping
                 description.clutter_text.line_wrap = true;
                 description.clutter_text.line_wrap_mode =
                     Pango.WrapMode.WORD_CHAR;
@@ -126,30 +127,7 @@ export class CalendarEventsSection {
         }
     }
 
-    private getLocalizedText(key: string): string {
-        const language = this.language();
-
-        const texts = {
-            today: {
-                amharic: "ዛሬ",
-                english: "Today",
-            },
-            noEvents: {
-                amharic: "ምንም ማስታወሻ አልተገኘም",
-                english: "No events found",
-            },
-        };
-
-        return (
-            texts[key as keyof typeof texts]?.[language] ||
-            texts[key as keyof typeof texts]?.amharic ||
-            ""
-        );
-    }
-
-    private language(): LanguageOption {
-        return this.settings.get_string(
-            SETTINGS.KEYS.CALENDAR_LANGUAGE,
-        ) as LanguageOption;
+    private getLocalizedText(key: keyof typeof TEXTS): string {
+        return TEXTS[key][readLanguage(this.settings)];
     }
 }
