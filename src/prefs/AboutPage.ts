@@ -2,7 +2,7 @@ import Adw from "gi://Adw";
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import GObject from "gi://GObject";
-import type { ExtensionMetadata } from "@girs/gnome-shell/extensions/extension";
+import type { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 import type { AboutPageChildren, Credit } from "../types/index.js";
 import { getTemplate } from "../utils/getTemplate.js";
 
@@ -57,7 +57,7 @@ export const AboutPage = GObject.registerClass(
         ],
     },
     class AboutPage extends Adw.PreferencesPage {
-        setMetadata(metadata: ExtensionMetadata) {
+        setMetadata(metadata: ExtensionPreferences["metadata"]) {
             const children = this as unknown as AboutPageChildren;
 
             // Set the icon from the project's assets
