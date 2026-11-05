@@ -1,4 +1,6 @@
 import Clutter from "gi://Clutter";
+import type Gio from "gi://Gio";
+import GLib from "gi://GLib";
 import St from "gi://St";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
@@ -8,11 +10,6 @@ import {
     createDateFormatterService,
     type DateFormatterService,
 } from "../services/dateFormatter.js";
-import {
-    ComponentBase,
-    type ExtensionBase,
-    ReactiveComponent,
-} from "../stignite/index.js";
 import type {
     FormatOption,
     LanguageOption,
@@ -22,249 +19,138 @@ import { SETTINGS } from "../types/index.js";
 import { logger } from "../utils/logger.js";
 import { CalendarPopup } from "./CalendarPopup.js";
 
-interface MainPanel {
-    _leftBox?: St.BoxLayout;
-    _rightBox?: St.BoxLayout;
-    _centerBox?: St.BoxLayout;
+/** The panel's private position boxes, which the typings leave out. */
+interface PanelBoxes {
+    _leftBox: St.BoxLayout;
+    _centerBox: St.BoxLayout;
+    _rightBox: St.BoxLayout;
 }
 
-interface MainPanelWithManager extends MainPanel {
-    menuManager?: PopupMenu.PopupMenuManager;
-}
+const PANEL_BOX = {
+    left: "_leftBox",
+    center: "_centerBox",
+    right: "_rightBox",
+} as const satisfies Record<PositionOption, keyof PanelBoxes>;
 
-@ReactiveComponent({
-    dependencies: {
-        [SETTINGS.KEYS.STATUS_BAR_POSITION]: ["panel-position"],
-        [SETTINGS.KEYS.STATUS_BAR_FORMAT]: ["time-display"],
-        [SETTINGS.KEYS.STATUS_BAR_CUSTOM_FORMAT]: ["time-display"],
-        [SETTINGS.KEYS.CALENDAR_LANGUAGE]: ["date-formatter"],
-        [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: ["date-formatter"],
-    },
-    priority: 10, // High priority as it's the main UI component
-    id: "status-bar-indicator",
-})
-export class StatusBarIndicator extends ComponentBase {
-    private _indicator: PanelMenu.Button | undefined;
-    private _label: St.Label | undefined;
-    private _calendarPopup: CalendarPopup | undefined;
-    private readonly timeout = 1.0;
-    private extension: ExtensionBase;
+const FORMAT_STRINGS: Record<Exclude<FormatOption, "custom">, string> = {
+    full: "dday mnam dd year hh:mm tp",
+    compact: "mnam dd hh:mm",
+    "time-only": "hh:mm tp",
+    "date-only": "dday mnam dd year",
+};
 
-    // Services
-    private dateFormatter: DateFormatterService | undefined;
+const CLOCK_INTERVAL_MS = 1000;
 
-    constructor(extension: ExtensionBase) {
-        super(extension.getSettings());
+export class StatusBarIndicator {
+    private readonly indicator: PanelMenu.Button;
+    private readonly label: St.Label;
+    private readonly popup: CalendarPopup;
+    private readonly dateFormatter: DateFormatterService;
+    private readonly settingsChangedId: number;
+    private clockId = 0;
 
-        this.extension = extension;
+    constructor(
+        private readonly settings: Gio.Settings,
+        openPreferences: () => void,
+    ) {
+        this.indicator = new PanelMenu.Button(0.5, "Ethiopian Calendar", false);
+        this.label = new St.Label({ y_align: Clutter.ActorAlign.CENTER });
+        this.indicator.add_child(this.label);
 
-        // Initial render
-        this.render({ force: true });
+        this.popup = new CalendarPopup(settings, openPreferences);
+        const menu = this.indicator.menu as PopupMenu.PopupMenu;
+        menu.addMenuItem(this.popup.item);
+        Main.panel.menuManager.addMenu(menu, 1);
+
+        // Every open starts from the current month with the picker closed
+        menu.actor.connect("show", () => {
+            this.popup.resetToCurrentMonth();
+            this.popup.hidePickerIfVisible();
+        });
+
+        this.dateFormatter = createDateFormatterService({
+            language: this.language(),
+            useGeezNumerals: this.useGeez(),
+        });
+
+        // Any setting change refreshes everything it can affect; only the position moves the indicator
+        this.settingsChangedId = settings.connect(
+            "changed",
+            (_settings, key) => {
+                if (key === SETTINGS.KEYS.STATUS_BAR_POSITION) {
+                    this.applyPosition();
+                } else {
+                    this.refresh();
+                }
+            },
+        );
+
+        this.applyPosition();
+        this.updateLabel();
+
+        this.clockId = GLib.timeout_add(
+            GLib.PRIORITY_DEFAULT,
+            CLOCK_INTERVAL_MS,
+            () => {
+                this.updateLabel();
+                return GLib.SOURCE_CONTINUE;
+            },
+        );
     }
 
-    /**
-     * Initial render - called once during construction
-     */
-    protected renderInitial(): void {
-        this.withErrorHandling(() => {
-            // Create UI components
-            this._indicator = new PanelMenu.Button(
-                0.5,
-                "Ethiopian Calendar",
-                false,
-            );
-
-            this._label = new St.Label({
-                y_align: Clutter.ActorAlign.CENTER,
-            });
-
-            this._indicator.add_child(this._label);
-
-            // Create child components
-            this._calendarPopup = new CalendarPopup(this.extension);
-
-            const popupMenu = this._indicator.menu as PopupMenu.PopupMenu;
-            popupMenu.addMenuItem(this._calendarPopup.getItem());
-
-            // Register the menu with GNOME Shell
-            (
-                Main.panel as unknown as MainPanelWithManager
-            ).menuManager?.addMenu(popupMenu, 1);
-
-            // Connect popup show event to
-            // hide month/year picker if visible
-            // reset to current month
-            const showSignalId = popupMenu.actor.connect("show", () => {
-                this._calendarPopup?.resetToCurrentMonth();
-                this._calendarPopup?.hidePickerIfVisible();
-            });
-            this.addCleanup(() => popupMenu.actor.disconnect(showSignalId));
-
-            // Initialize services
-            this.dateFormatter = createDateFormatterService({
-                language: this.settings.get_string(
-                    SETTINGS.KEYS.CALENDAR_LANGUAGE,
-                ) as LanguageOption,
-                useGeezNumerals: this.settings.get_boolean(
-                    SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-                ),
-            });
-
-            // Set initial state
-            this.updatePanelPosition();
-            this.updateTimeDisplay();
-
-            // Start time update timer
-            this.addTimer(() => {
-                this.updateTimeDisplay();
-            }, this.timeout * 1000);
-        }, "Failed to render StatusBarIndicator initially");
+    private refresh(): void {
+        this.updateLabel();
+        this.popup.refresh();
     }
 
-    /**
-     * Smart partial updates - called when settings change
-     */
-    protected renderUpdates(
-        _changes: Record<string, unknown>,
-        affectedParts: string[],
-    ): void {
-        this.withErrorHandling(() => {
-            if (affectedParts.includes("panel-position")) {
-                this.updatePanelPosition();
-            }
+    private applyPosition(): void {
+        const position = this.settings.get_string(
+            SETTINGS.KEYS.STATUS_BAR_POSITION,
+        ) as PositionOption;
+        const box = (Main.panel as unknown as PanelBoxes)[PANEL_BOX[position]];
+        if (!box) return;
 
-            if (
-                affectedParts.includes("time-display") ||
-                affectedParts.includes("date-formatter")
-            ) {
-                this.updateTimeDisplay();
-            }
-        }, "Failed to update StatusBarIndicator");
+        const container = this.indicator.container;
+        container.get_parent()?.remove_child(container);
+        box.insert_child_at_index(container, 1);
+        logger.debug(`Status bar position updated to: ${position}`);
     }
 
-    /**
-     * Update panel position in GNOME Shell
-     */
-    private updatePanelPosition(): void {
-        this.withErrorHandling(() => {
-            if (!this._indicator) return;
+    private updateLabel(): void {
+        this.dateFormatter.updateOptions({
+            language: this.language(),
+            useGeezNumerals: this.useGeez(),
+        });
 
-            // Remove from current position first
-            this.removeFromAllPanelPositions();
+        const format = this.settings.get_string(
+            SETTINGS.KEYS.STATUS_BAR_FORMAT,
+        ) as FormatOption;
+        const formatString =
+            format === "custom"
+                ? this.settings.get_string(
+                      SETTINGS.KEYS.STATUS_BAR_CUSTOM_FORMAT,
+                  )
+                : FORMAT_STRINGS[format];
 
-            const methodMap = {
-                left: "_leftBox",
-                center: "_centerBox",
-                right: "_rightBox",
-            } as const;
-
-            const position = this.settings.get_string(
-                SETTINGS.KEYS.STATUS_BAR_POSITION,
-            ) as PositionOption;
-            const method = methodMap[position];
-
-            if (method) {
-                (Main.panel as unknown as MainPanel)[
-                    method as keyof MainPanel
-                ]?.insert_child_at_index(this._indicator.container, 1);
-                logger.debug(`Status bar position updated to: ${position}`);
-            }
-        }, "Failed to update panel position");
+        this.label.text = this.dateFormatter.format(formatString, new Kenat());
     }
 
-    /**
-     * Update time display in status bar
-     */
-    private updateTimeDisplay(): void {
-        this.withErrorHandling(() => {
-            if (!this._label || !this.dateFormatter) return;
-
-            // Update date formatter options with new settings
-            this.dateFormatter.updateOptions({
-                language: this.settings.get_string(
-                    SETTINGS.KEYS.CALENDAR_LANGUAGE,
-                ) as LanguageOption,
-                useGeezNumerals: this.settings.get_boolean(
-                    SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-                ),
-            });
-
-            const formattedTime = this.getCurrentDateAndTime();
-            this._label.text = formattedTime;
-        }, "Failed to update time display");
+    private language(): LanguageOption {
+        return this.settings.get_string(
+            SETTINGS.KEYS.CALENDAR_LANGUAGE,
+        ) as LanguageOption;
     }
 
-    /**
-     * Get current date and time formatted
-     */
-    private getCurrentDateAndTime(): string {
-        return this.withErrorHandling(() => {
-            if (!this.dateFormatter) return "";
-
-            const kenat = new Kenat();
-            const format = this.settings.get_string(
-                SETTINGS.KEYS.STATUS_BAR_FORMAT,
-            ) as FormatOption;
-            const customFormat = this.settings.get_string(
-                SETTINGS.KEYS.STATUS_BAR_CUSTOM_FORMAT,
-            );
-
-            // Use custom format if selected, otherwise use predefined formats
-            if (format === "custom") {
-                return this.dateFormatter.format(customFormat, kenat);
-            }
-
-            // Map predefined formats to custom format strings
-            const formatMap: Record<Exclude<FormatOption, "custom">, string> = {
-                full: "dday mnam dd year hh:mm tp",
-                compact: "mnam dd hh:mm",
-                "time-only": "hh:mm tp",
-                "date-only": "dday mnam dd year",
-            };
-
-            const formatString =
-                formatMap[format as Exclude<FormatOption, "custom">];
-            return this.dateFormatter.format(formatString, kenat);
-        }, "Failed to get current date and time");
-    }
-
-    private removeFromAllPanelPositions() {
-        this.withErrorHandling(() => {
-            if (!this._indicator) return;
-
-            (Main.panel as unknown as MainPanel)._leftBox?.remove_child(
-                this._indicator.container,
-            );
-            (Main.panel as unknown as MainPanel)._rightBox?.remove_child(
-                this._indicator.container,
-            );
-            (Main.panel as unknown as MainPanel)._centerBox?.remove_child(
-                this._indicator.container,
-            );
-        }, "Failed to remove from all panel positions");
+    private useGeez(): boolean {
+        return this.settings.get_boolean(SETTINGS.KEYS.USE_GEEZ_NUMERALS);
     }
 
     destroy(): void {
-        // Clean up calendar popup
-        if (this._calendarPopup) {
-            this._calendarPopup.destroy();
-            this._calendarPopup = undefined;
-        }
+        if (this.clockId) GLib.source_remove(this.clockId);
+        this.clockId = 0;
 
-        // Clean up date formatter
-        this.dateFormatter = undefined;
-
-        // Clean up indicator
-        if (this._indicator) {
-            this.removeFromAllPanelPositions();
-            this._indicator.destroy();
-            this._indicator = undefined;
-        }
-
-        // Clean up references
-        this._label = undefined;
-
-        // Call parent destroy to clean up all registered cleanups
-        super.destroy();
+        this.settings.disconnect(this.settingsChangedId);
+        this.popup.destroy();
+        this.indicator.destroy();
     }
 }

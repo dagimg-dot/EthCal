@@ -3,145 +3,53 @@ import type Gio from "gi://Gio";
 import Pango from "gi://Pango";
 import St from "gi://St";
 import Kenat from "../lib/kenat.js";
-import type { KenatDate } from "../services/dayInfoService.js";
-import { createDayInfoService } from "../services/dayInfoService.js";
-import { ComponentBase, ReactiveComponent } from "../stignite/index.js";
+import {
+    createDayInfoService,
+    type DayInfoService,
+    type KenatDate,
+} from "../services/dayInfoService.js";
 import type { LanguageOption } from "../types/index.js";
 import { SETTINGS } from "../types/index.js";
 
-@ReactiveComponent({
-    dependencies: {
-        [SETTINGS.KEYS.CALENDAR_LANGUAGE]: ["event-titles", "holiday-names"],
-        [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: ["date-titles"],
-    },
-    priority: 2, // Lowest priority
-    id: "calendar-events-section",
-})
-export class CalendarEventsSection extends ComponentBase {
-    private outer: St.BoxLayout | undefined;
-    private titleLabel: St.Label | undefined;
-    private eventsList: St.BoxLayout | undefined;
-    private dayInfoService: ReturnType<typeof createDayInfoService> | undefined;
-    private currentDate: KenatDate | undefined;
+export class CalendarEventsSection {
+    readonly widget: St.BoxLayout;
+    private readonly titleLabel: St.Label;
+    private readonly eventsList: St.BoxLayout;
+    private readonly dayInfoService: DayInfoService;
 
-    constructor(settings: Gio.Settings) {
-        super(settings);
-
-        // Initial render
-        this.render({ force: true });
-    }
-
-    /**
-     * Initial render - called once during construction
-     */
-    protected renderInitial(): void {
-        this.withErrorHandling(() => {
-            // Create main container
-            this.outer = new St.BoxLayout({
-                orientation: Clutter.Orientation.VERTICAL,
-                style_class: "calendar-events",
-            });
-
-            this.createTitleSection();
-            this.createEventsList();
-
-            // Initialize services
-            this.dayInfoService = createDayInfoService(
-                this.settings.get_string(
-                    SETTINGS.KEYS.CALENDAR_LANGUAGE,
-                ) as LanguageOption,
-            );
-        }, "Failed to render CalendarEventsSection initially");
-    }
-
-    /**
-     * Smart partial updates - called when settings change
-     */
-    protected renderUpdates(
-        changes: Record<string, unknown>,
-        affectedParts: string[],
-    ): void {
-        this.withErrorHandling(() => {
-            if (
-                affectedParts.includes("event-titles") ||
-                affectedParts.includes("holiday-names")
-            ) {
-                // Update dayInfoService language when language changes
-                if (
-                    changes[SETTINGS.KEYS.CALENDAR_LANGUAGE] &&
-                    this.dayInfoService
-                ) {
-                    const newLanguage = changes[
-                        SETTINGS.KEYS.CALENDAR_LANGUAGE
-                    ] as LanguageOption;
-                    this.dayInfoService.updateLanguage(newLanguage);
-
-                    // Re-render current events with new language
-                    if (this.currentDate) {
-                        this.updateEvents(this.currentDate);
-                    }
-                }
-            }
-
-            if (affectedParts.includes("date-titles")) {
-                // Update title when geez numerals change
-                if (this.currentDate) {
-                    this.updateTitle(this.currentDate);
-                }
-            }
-        }, "Failed to update CalendarEventsSection");
-    }
-
-    private createTitleSection(): void {
-        if (!this.outer) return;
+    constructor(private readonly settings: Gio.Settings) {
+        this.widget = new St.BoxLayout({
+            orientation: Clutter.Orientation.VERTICAL,
+            style_class: "calendar-events",
+        });
 
         this.titleLabel = new St.Label({
             text: this.getLocalizedText("today"),
             style_class: "calendar-events-title",
         });
-
-        this.outer.add_child(this.titleLabel);
-    }
-
-    private createEventsList(): void {
-        if (!this.outer) return;
+        this.widget.add_child(this.titleLabel);
 
         this.eventsList = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
             style_class: "calendar-events-list",
         });
+        this.widget.add_child(this.eventsList);
 
-        this.outer.add_child(this.eventsList);
+        this.dayInfoService = createDayInfoService(this.language());
     }
 
-    public updateEvents(date: KenatDate): void {
-        this.withErrorHandling(() => {
-            if (!this.titleLabel || !this.eventsList || !this.dayInfoService) {
-                return;
-            }
-
-            // Store the current date for reactive updates
-            this.currentDate = date;
-
-            // Update title and events
-            this.updateTitle(date);
-            this.updateEventsList(date);
-        }, "Failed to update events for selected date");
+    updateEvents(date: KenatDate): void {
+        this.dayInfoService.updateLanguage(this.language());
+        this.updateTitle(date);
+        this.updateEventsList(date);
     }
 
     private updateTitle(date: KenatDate): void {
-        if (!this.titleLabel) return;
-
         this.titleLabel.text = this.formatDate(date.day, date.month, date.year);
     }
 
     private updateEventsList(date: KenatDate): void {
-        if (!this.eventsList || !this.dayInfoService) return;
-
-        // Clear existing events
-        this.eventsList.get_children().forEach((child) => {
-            child.destroy();
-        });
+        for (const child of this.eventsList.get_children()) child.destroy();
 
         // Get and display events for the selected date
         const dayEvents = this.dayInfoService.getDayEvents(date);
@@ -152,16 +60,9 @@ export class CalendarEventsSection extends ComponentBase {
         const dateString = `${year}-${month}-${day}`;
         const kenat = new Kenat(dateString);
 
-        const language = this.settings.get_string(
-            SETTINGS.KEYS.CALENDAR_LANGUAGE,
-        ) as LanguageOption;
-        const useGeez = this.settings.get_boolean(
-            SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-        );
-
         const formattedDate = kenat.format({
-            lang: language,
-            useGeez: useGeez,
+            lang: this.language(),
+            useGeez: this.settings.get_boolean(SETTINGS.KEYS.USE_GEEZ_NUMERALS),
         });
 
         return `${month} - ${formattedDate}`;
@@ -226,9 +127,7 @@ export class CalendarEventsSection extends ComponentBase {
     }
 
     private getLocalizedText(key: string): string {
-        const language = this.settings.get_string(
-            SETTINGS.KEYS.CALENDAR_LANGUAGE,
-        ) as LanguageOption;
+        const language = this.language();
 
         const texts = {
             today: {
@@ -248,21 +147,9 @@ export class CalendarEventsSection extends ComponentBase {
         );
     }
 
-    public getWidget(): St.BoxLayout {
-        if (!this.outer) {
-            throw new Error("CalendarEventsSection not initialized");
-        }
-        return this.outer;
-    }
-
-    destroy(): void {
-        // Clean up UI references
-        this.outer = undefined;
-        this.titleLabel = undefined;
-        this.eventsList = undefined;
-        this.dayInfoService = undefined;
-
-        // Call parent destroy to clean up events and reactive settings
-        super.destroy();
+    private language(): LanguageOption {
+        return this.settings.get_string(
+            SETTINGS.KEYS.CALENDAR_LANGUAGE,
+        ) as LanguageOption;
     }
 }

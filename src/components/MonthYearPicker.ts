@@ -2,105 +2,29 @@ import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
 import St from "gi://St";
 import { toGeez } from "../lib/kenat.js";
-import { createDayInfoService } from "../services/dayInfoService.js";
-import { ComponentBase, ReactiveComponent } from "../stignite/index.js";
 import type { LanguageOption } from "../types/index.js";
 import { SETTINGS } from "../types/index.js";
 
-@ReactiveComponent({
-    dependencies: {
-        [SETTINGS.KEYS.CALENDAR_LANGUAGE]: ["month-names", "year-display"],
-        [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: ["year-display"],
-    },
-    priority: 1, // High priority for user interaction
-    id: "month-year-picker",
-})
-export class MonthYearPicker extends ComponentBase {
-    private outer: St.BoxLayout | undefined;
-    private monthSlider: St.BoxLayout | undefined;
-    private yearSlider: St.BoxLayout | undefined;
-    private monthContainer: St.ScrollView | undefined;
-    private yearContainer: St.ScrollView | undefined;
-    private dayInfoService: ReturnType<typeof createDayInfoService> | undefined;
-
-    private currentMonth: number = 1;
-    private currentYear: number = 2016; // Ethiopian year
-    private onDateSelected?: (month: number, year: number) => void;
+export class MonthYearPicker {
+    readonly widget: St.BoxLayout;
+    private readonly monthSlider: St.BoxLayout;
+    private readonly yearSlider: St.BoxLayout;
+    private readonly monthContainer: St.ScrollView;
+    private readonly yearContainer: St.ScrollView;
 
     constructor(
-        settings: Gio.Settings,
-        initialMonth: number,
-        initialYear: number,
-        onDateSelected?: (month: number, year: number) => void,
+        private readonly settings: Gio.Settings,
+        private currentMonth: number,
+        private currentYear: number,
+        private readonly onDateSelected: (month: number, year: number) => void,
     ) {
-        super(settings);
-        this.currentMonth = initialMonth;
-        this.currentYear = initialYear;
-        this.onDateSelected = onDateSelected;
+        this.widget = new St.BoxLayout({
+            orientation: Clutter.Orientation.HORIZONTAL,
+            style_class: "floating-picker-container",
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
 
-        // Initial render
-        this.render({ force: true });
-    }
-
-    /**
-     * Initial render - called once during construction
-     */
-    protected renderInitial(): void {
-        this.withErrorHandling(() => {
-            // Create main container - floating style
-            this.outer = new St.BoxLayout({
-                orientation: Clutter.Orientation.HORIZONTAL,
-                style_class: "floating-picker-container",
-                x_align: Clutter.ActorAlign.CENTER,
-                y_align: Clutter.ActorAlign.CENTER,
-            });
-
-            // Initialize services
-            this.dayInfoService = createDayInfoService(
-                this.settings.get_string(
-                    SETTINGS.KEYS.CALENDAR_LANGUAGE,
-                ) as LanguageOption,
-            );
-
-            this.createMonthSlider();
-            this.createYearSlider();
-        }, "Failed to render MonthYearPicker initially");
-    }
-
-    /**
-     * Smart partial updates - called when settings change
-     */
-    protected renderUpdates(
-        changes: Record<string, unknown>,
-        affectedParts: string[],
-    ): void {
-        this.withErrorHandling(() => {
-            if (
-                affectedParts.includes("month-names") ||
-                affectedParts.includes("year-display")
-            ) {
-                // Update dayInfoService language when language changes
-                if (
-                    changes[SETTINGS.KEYS.CALENDAR_LANGUAGE] &&
-                    this.dayInfoService
-                ) {
-                    const newLanguage = changes[
-                        SETTINGS.KEYS.CALENDAR_LANGUAGE
-                    ] as LanguageOption;
-                    this.dayInfoService.updateLanguage(newLanguage);
-
-                    // Re-render sliders with new language
-                    this.updateMonthSlider();
-                    this.updateYearSlider();
-                }
-            }
-        }, "Failed to update MonthYearPicker");
-    }
-
-    private createMonthSlider(): void {
-        if (!this.outer) return;
-
-        // Create month slider container - floating style
         this.monthContainer = new St.ScrollView({
             style_class: "floating-month-slider-container",
             hscrollbar_policy: St.PolicyType.NEVER,
@@ -108,24 +32,15 @@ export class MonthYearPicker extends ComponentBase {
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
-
         this.monthSlider = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
             style_class: "floating-month-slider",
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
-
         this.monthContainer.add_child(this.monthSlider);
-        this.outer.add_child(this.monthContainer);
+        this.widget.add_child(this.monthContainer);
 
-        this.updateMonthSlider();
-    }
-
-    private createYearSlider(): void {
-        if (!this.outer) return;
-
-        // Create year slider container - floating style
         this.yearContainer = new St.ScrollView({
             style_class: "floating-year-slider-container",
             hscrollbar_policy: St.PolicyType.NEVER,
@@ -133,27 +48,21 @@ export class MonthYearPicker extends ComponentBase {
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
-
         this.yearSlider = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
             style_class: "floating-year-slider",
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
         });
-
         this.yearContainer.add_child(this.yearSlider);
-        this.outer.add_child(this.yearContainer);
+        this.widget.add_child(this.yearContainer);
 
+        this.updateMonthSlider();
         this.updateYearSlider();
     }
 
     private updateMonthSlider(): void {
-        if (!this.monthSlider || !this.dayInfoService) return;
-
-        // Clear existing months
-        this.monthSlider.get_children().forEach((child) => {
-            child.destroy();
-        });
+        for (const child of this.monthSlider.get_children()) child.destroy();
 
         // Create month items (1-13 for Ethiopian calendar)
         for (let month = 1; month <= 13; month++) {
@@ -166,12 +75,7 @@ export class MonthYearPicker extends ComponentBase {
     }
 
     private updateYearSlider(): void {
-        if (!this.yearSlider || !this.dayInfoService) return;
-
-        // Clear existing years
-        this.yearSlider.get_children().forEach((child) => {
-            child.destroy();
-        });
+        for (const child of this.yearSlider.get_children()) child.destroy();
 
         // Create year items (range around current year)
         const startYear = this.currentYear - 10;
@@ -306,18 +210,16 @@ export class MonthYearPicker extends ComponentBase {
     private selectMonth(month: number): void {
         this.currentMonth = month;
         this.updateMonthSlider();
-        this.onDateSelected?.(month, this.currentYear);
+        this.onDateSelected(month, this.currentYear);
     }
 
     private selectYear(year: number): void {
         this.currentYear = year;
         this.updateYearSlider();
-        this.onDateSelected?.(this.currentMonth, year);
+        this.onDateSelected(this.currentMonth, year);
     }
 
     private scrollToCurrentMonth(): void {
-        if (!this.monthContainer || !this.monthSlider) return;
-
         // Calculate scroll position to center current month
         const itemHeight = 32; // Approximate item height
         const scrollPosition = (this.currentMonth - 1) * itemHeight;
@@ -331,8 +233,6 @@ export class MonthYearPicker extends ComponentBase {
     }
 
     private scrollToCurrentYear(): void {
-        if (!this.yearContainer || !this.yearSlider) return;
-
         // Calculate scroll position to center current year
         const itemHeight = 32; // Approximate item height
         const startYear = this.currentYear - 10;
@@ -346,14 +246,7 @@ export class MonthYearPicker extends ComponentBase {
         }
     }
 
-    public getWidget(): St.BoxLayout {
-        if (!this.outer) {
-            throw new Error("MonthYearPicker not initialized");
-        }
-        return this.outer;
-    }
-
-    public setCurrentDate(month: number, year: number): void {
+    setCurrentDate(month: number, year: number): void {
         this.currentMonth = month;
         this.currentYear = year;
         this.updateMonthSlider();
@@ -361,13 +254,6 @@ export class MonthYearPicker extends ComponentBase {
     }
 
     destroy(): void {
-        this.outer = undefined;
-        this.monthSlider = undefined;
-        this.yearSlider = undefined;
-        this.monthContainer = undefined;
-        this.yearContainer = undefined;
-        this.dayInfoService = undefined;
-
-        super.destroy();
+        this.widget.destroy();
     }
 }

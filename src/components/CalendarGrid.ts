@@ -1,113 +1,41 @@
 import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
 import St from "gi://St";
+import type { KenatDate } from "../services/dayInfoService.js";
 import type {
     DayCell,
     MonthGridResult,
     MonthGridService,
 } from "../services/monthGrid.js";
-import { ComponentBase, ReactiveComponent } from "../stignite/index.js";
 import { SETTINGS } from "../types/index.js";
 
-@ReactiveComponent({
-    dependencies: {
-        [SETTINGS.KEYS.CALENDAR_LANGUAGE]: ["weekday-headers"],
-        [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: ["day-numbers"],
-    },
-    priority: 5, // Medium priority
-    id: "calendar-grid",
-})
-export class CalendarGrid extends ComponentBase {
-    private outer: St.Widget | undefined;
-    private gridLayout: Clutter.GridLayout | undefined;
-    private dayButtons: St.Button[] = [];
+export class CalendarGrid {
+    readonly widget: St.Widget;
+    private readonly gridLayout: Clutter.GridLayout;
 
-    // Reactive setting values
-    private useGeezNumerals = SETTINGS.DEFAULTS.GEEZ_NUMERALS;
-    private monthService: MonthGridService;
-
-    constructor(monthService: MonthGridService, settings: Gio.Settings) {
-        super(settings);
-        this.monthService = monthService;
-
-        // Initial render
-        this.render({ force: true });
+    constructor(
+        private readonly monthService: MonthGridService,
+        private readonly settings: Gio.Settings,
+        private readonly onDaySelected: (date: KenatDate) => void,
+    ) {
+        this.gridLayout = new Clutter.GridLayout({
+            column_homogeneous: true,
+            row_homogeneous: true,
+        });
+        this.widget = new St.Widget({
+            layout_manager: this.gridLayout,
+            style_class: "calendar-grid",
+            x_expand: true,
+        });
     }
 
-    /**
-     * Initial render - called once during construction
-     */
-    protected renderInitial(): void {
-        this.withErrorHandling(() => {
-            // Create grid layout
-            this.gridLayout = new Clutter.GridLayout({
-                column_homogeneous: true,
-                row_homogeneous: true,
-            });
-
-            // Create grid container
-            this.outer = new St.Widget({
-                layout_manager: this.gridLayout,
-                style_class: "calendar-grid",
-                x_expand: true,
-            });
-
-            // Set initial reactive values
-            this.useGeezNumerals = this.settings.get_boolean(
-                SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-            );
-
-            this.refresh();
-        }, "Failed to render CalendarGrid initially");
-    }
-
-    /**
-     * Smart partial updates - called when settings change
-     */
-    protected renderUpdates(
-        _changes: Record<string, unknown>,
-        affectedParts: string[],
-    ): void {
-        this.withErrorHandling(() => {
-            if (affectedParts.includes("weekday-headers")) {
-                // Language changed - refresh entire grid to update headers
-                this.refresh();
-            } else if (affectedParts.includes("day-numbers")) {
-                // Geez numerals changed - update existing day buttons
-                this.updateDayLabels();
-            }
-        }, "Failed to update CalendarGrid");
-    }
-
-    /**
-     * Update only the day number labels without recreating buttons
-     */
-    private updateDayLabels(): void {
-        this.withErrorHandling(() => {
-            // Update the reactive value first
-            this.useGeezNumerals = this.settings.get_boolean(
-                SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-            );
-
-            // Refresh the entire grid with the new numeral format
-            this.refresh();
-        }, "Failed to update day labels");
-    }
-
-    public refresh(): void {
-        this.withErrorHandling(() => {
-            const data = this.monthService.generate();
-            this.renderCalendar(data);
-        }, "Failed to refresh calendar grid");
+    refresh(): void {
+        this.renderCalendar(this.monthService.generate());
     }
 
     private renderCalendar(data: MonthGridResult): void {
-        if (!this.gridLayout || !this.outer) return;
+        for (const child of this.widget.get_children()) child.destroy();
 
-        // Clear existing grid
-        this.clearGrid();
-
-        // Render headers (weekdays)
         data.headers.forEach((header, idx) => {
             const headerLabel = new St.Label({
                 text: header.slice(0, 3), // Short weekday names
@@ -116,43 +44,35 @@ export class CalendarGrid extends ComponentBase {
             this.setCell(0, idx, headerLabel);
         });
 
-        // Reset day buttons array
-        this.dayButtons = [];
+        const useGeez = this.settings.get_boolean(
+            SETTINGS.KEYS.USE_GEEZ_NUMERALS,
+        );
 
-        // Render days
         let row = 1;
         let col = 0;
-
-        data.days.forEach((day) => {
+        for (const day of data.days) {
             if (col === 7) {
                 row += 1;
                 col = 0;
             }
-
-            if (!day) {
-                // Empty cell
-                this.setCell(row, col, new St.Label({ text: "" }));
-            } else {
-                // Day button
-                const dayButton = this.createDayButton(day);
-                this.setCell(row, col, dayButton);
-                this.dayButtons.push(dayButton);
-            }
-
+            this.setCell(
+                row,
+                col,
+                day ? this.createDayButton(day, useGeez) : new St.Label(),
+            );
             col += 1;
-        });
+        }
     }
 
-    private createDayButton(day: DayCell): St.Button {
-        const label = this.formatDayLabel(day);
+    private createDayButton(day: DayCell, useGeez: boolean): St.Button {
         const button = new St.Button({
             style_class: "calendar-day",
             can_focus: true,
         });
+        button.set_child(
+            new St.Label({ text: this.formatDayLabel(day, useGeez) }),
+        );
 
-        button.set_child(new St.Label({ text: label }));
-
-        // Apply styling based on day properties
         if (day.isToday) {
             button.add_style_class_name("calendar-today");
             if (day.holidays.length > 0) {
@@ -163,7 +83,6 @@ export class CalendarGrid extends ComponentBase {
         if (!day.isToday && day.holidays.length > 0) {
             button.add_style_class_name("calendar-holiday");
 
-            // Add specific holiday type classes
             if (day.holidayTags.includes("public")) {
                 button.add_style_class_name("public-holiday");
             }
@@ -175,51 +94,21 @@ export class CalendarGrid extends ComponentBase {
             }
         }
 
-        // Connect click event
-        button.connect("clicked", () => {
-            this.withErrorHandling(() => {
-                this.emit("day-selected", day.ethiopianNumeric);
-            }, "Failed to handle day selection");
-        });
+        button.connect("clicked", () =>
+            this.onDaySelected(day.ethiopianNumeric),
+        );
 
         return button;
     }
 
-    private formatDayLabel(day: DayCell): string {
-        // Use reactive Geez numerals setting
-        if (this.useGeezNumerals && typeof day.ethiopian.day === "string") {
-            return day.ethiopian.day; // Return Geez numeral string
+    private formatDayLabel(day: DayCell, useGeez: boolean): string {
+        if (useGeez && typeof day.ethiopian.day === "string") {
+            return day.ethiopian.day;
         }
-
-        return String(day.ethiopianNumeric.day); // Return regular number
-    }
-
-    private clearGrid(): void {
-        if (!this.outer) return;
-        this.outer.get_children().forEach((child) => {
-            child.destroy();
-        });
+        return String(day.ethiopianNumeric.day);
     }
 
     private setCell(row: number, col: number, actor: St.Widget): void {
-        if (!this.gridLayout) return;
         this.gridLayout.attach(actor, col, row, 1, 1);
-    }
-
-    public getWidget(): St.Widget {
-        if (!this.outer) {
-            throw new Error("CalendarGrid not initialized");
-        }
-        return this.outer;
-    }
-
-    destroy(): void {
-        // Clean up UI references
-        this.outer = undefined;
-        this.gridLayout = undefined;
-        this.dayButtons = [];
-
-        // Call parent destroy to clean up events and reactive settings
-        super.destroy();
     }
 }

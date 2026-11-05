@@ -1,59 +1,33 @@
-import type { ExtensionMetadata } from "resource:///org/gnome/shell/extensions/extension.js";
+import type Gio from "gi://Gio";
+import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import { StatusBarIndicator } from "./components/StatusBarIndicator.js";
-import { ExtensionBase } from "./stignite/index.js";
-import { SETTINGS } from "./types/index.js";
 import {
     deinitializeLogger,
     initializeLogger,
     logger,
 } from "./utils/logger.js";
 
-export default class EthCal extends ExtensionBase {
-    private _statusBarIndicator: StatusBarIndicator | undefined;
-
-    constructor(metadata: ExtensionMetadata) {
-        // Define the setting schema for this extension
-        const settingSchema = {
-            [SETTINGS.KEYS.STATUS_BAR_POSITION]: {
-                type: "string" as const,
-                default: SETTINGS.DEFAULTS.POSITION,
-            },
-            [SETTINGS.KEYS.STATUS_BAR_FORMAT]: {
-                type: "string" as const,
-                default: SETTINGS.DEFAULTS.FORMAT,
-            },
-            [SETTINGS.KEYS.STATUS_BAR_CUSTOM_FORMAT]: {
-                type: "string" as const,
-                default: SETTINGS.DEFAULTS.CUSTOM_FORMAT,
-            },
-            [SETTINGS.KEYS.CALENDAR_LANGUAGE]: {
-                type: "string" as const,
-                default: SETTINGS.DEFAULTS.LANGUAGE,
-            },
-            [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: {
-                type: "boolean" as const,
-                default: SETTINGS.DEFAULTS.GEEZ_NUMERALS,
-            },
-            [SETTINGS.KEYS.LOGGING_LEVEL]: {
-                type: "string" as const,
-                default: SETTINGS.DEFAULTS.LOGGING_LEVEL,
-            },
-        };
-
-        super(metadata, { settingSchema, logger });
-    }
+export default class EthCal extends Extension {
+    private settings: Gio.Settings | null = null;
+    private indicator: StatusBarIndicator | null = null;
 
     enable(): void {
-        initializeLogger(this.getSettings());
+        this.settings = this.getSettings();
+        initializeLogger(this.settings);
         logger.info("Enabling EthCal extension");
 
-        this._statusBarIndicator = new StatusBarIndicator(this);
-        this.addComponent(this._statusBarIndicator);
+        this.indicator = new StatusBarIndicator(this.settings, () =>
+            this.openPreferences(),
+        );
     }
 
     disable(): void {
         logger.info("Disabling EthCal extension");
-        super.destroy();
-        deinitializeLogger(this.getSettings());
+
+        this.indicator?.destroy();
+        this.indicator = null;
+
+        if (this.settings) deinitializeLogger(this.settings);
+        this.settings = null;
     }
 }

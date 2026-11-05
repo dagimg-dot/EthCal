@@ -2,117 +2,57 @@ import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
 import St from "gi://St";
 import Kenat from "../lib/kenat.js";
-import { ComponentBase, ReactiveComponent } from "../stignite/index.js";
 import { type LanguageOption, SETTINGS } from "../types/index.js";
 
-@ReactiveComponent({
-    dependencies: {
-        [SETTINGS.KEYS.CALENDAR_LANGUAGE]: ["weekday-title", "date-title"],
-        [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: ["date-title"],
-    },
-    priority: 4, // Medium priority
-    id: "calendar-top-header",
-})
-export class CalendarTopHeader extends ComponentBase {
-    private outer: St.BoxLayout | undefined;
-    private weekdayTitle: St.Label | undefined;
-    private fullDateTitle: St.Label | undefined;
-    private settingsBtn: St.Button | undefined;
+export class CalendarTopHeader {
+    readonly widget: St.BoxLayout;
+    private readonly weekdayTitle: St.Label;
+    private readonly fullDateTitle: St.Label;
 
-    constructor(settings: Gio.Settings) {
-        super(settings);
-
-        // Initial render
-        this.render({ force: true });
-    }
-
-    /**
-     * Initial render - called once during construction
-     */
-    protected renderInitial(): void {
-        this.withErrorHandling(() => {
-            // Create main container
-            this.outer = new St.BoxLayout({
-                orientation: Clutter.Orientation.VERTICAL,
-                style_class: "calendar-top",
-            });
-
-            this.createTopRow();
-            this.createDateRow();
-
-            // Initial display update
-            this.updateDisplay();
-        }, "Failed to render CalendarTopHeader initially");
-    }
-
-    /**
-     * Smart partial updates - called when settings change
-     */
-    protected renderUpdates(
-        _changes: Record<string, unknown>,
-        affectedParts: string[],
-    ): void {
-        this.withErrorHandling(() => {
-            if (
-                affectedParts.includes("weekday-title") ||
-                affectedParts.includes("date-title")
-            ) {
-                this.updateDisplay();
-            }
-        }, "Failed to update CalendarTopHeader");
-    }
-
-    private createTopRow(): void {
-        if (!this.outer) return;
+    constructor(
+        private readonly settings: Gio.Settings,
+        onSettingsClicked: () => void,
+    ) {
+        this.widget = new St.BoxLayout({
+            orientation: Clutter.Orientation.VERTICAL,
+            style_class: "calendar-top",
+        });
 
         const topRow = new St.BoxLayout({
             orientation: Clutter.Orientation.HORIZONTAL,
             style_class: "calendar-top-row",
         });
 
-        // Weekday title
         this.weekdayTitle = new St.Label({
             text: "",
             style_class: "calendar-top-weekday",
         });
 
-        // Settings button
-        this.settingsBtn = new St.Button({
+        const settingsBtn = new St.Button({
             style_class: "calendar-settings-button",
             can_focus: true,
         });
-        this.settingsBtn.set_child(
+        settingsBtn.set_child(
             new St.Icon({
                 icon_name: "preferences-system-symbolic",
                 style_class: "popup-menu-icon",
             }),
         );
-
-        // Connect settings button
-        this.settingsBtn.connect("clicked", () => {
-            this.emit("settings-clicked");
-        });
+        settingsBtn.connect("clicked", onSettingsClicked);
 
         topRow.add_child(this.weekdayTitle);
         topRow.add_child(new St.Widget({ x_expand: true })); // Spacer
-        topRow.add_child(this.settingsBtn);
-        this.outer.add_child(topRow);
-    }
-
-    private createDateRow(): void {
-        if (!this.outer) return;
+        topRow.add_child(settingsBtn);
+        this.widget.add_child(topRow);
 
         this.fullDateTitle = new St.Label({
             text: "",
             style_class: "calendar-top-date",
         });
-
-        this.outer.add_child(this.fullDateTitle);
+        this.widget.add_child(this.fullDateTitle);
     }
 
-    private updateDisplay(): void {
-        if (!this.weekdayTitle || !this.fullDateTitle) return;
-
+    refresh(): void {
         const today = new Kenat();
         const language = this.settings.get_string(
             SETTINGS.KEYS.CALENDAR_LANGUAGE,
@@ -129,23 +69,5 @@ export class CalendarTopHeader extends ComponentBase {
             lang: language,
             useGeez: useGeezNumerals,
         });
-    }
-
-    public getWidget(): St.BoxLayout {
-        if (!this.outer) {
-            throw new Error("CalendarTopHeader not initialized");
-        }
-        return this.outer;
-    }
-
-    destroy(): void {
-        // Clean up UI references
-        this.outer = undefined;
-        this.weekdayTitle = undefined;
-        this.fullDateTitle = undefined;
-        this.settingsBtn = undefined;
-
-        // Call parent destroy to clean up events and reactive settings
-        super.destroy();
     }
 }

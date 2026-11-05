@@ -1,183 +1,69 @@
 import Clutter from "gi://Clutter";
-import type Gio from "gi://Gio";
 import St from "gi://St";
-import { ComponentBase, ReactiveComponent } from "../stignite/index.js";
-import { SETTINGS } from "../types/index.js";
 
-@ReactiveComponent({
-    dependencies: {
-        [SETTINGS.KEYS.CALENDAR_LANGUAGE]: ["month-name"],
-        [SETTINGS.KEYS.USE_GEEZ_NUMERALS]: ["year-number"],
-    },
-    priority: 3, // Lower priority
-    id: "calendar-month-header",
-})
-export class CalendarMonthHeader extends ComponentBase {
-    private outer: St.BoxLayout | undefined;
-    private prevBtn: St.Button | undefined;
-    private nextBtn: St.Button | undefined;
-    private titleLabel: St.Label | undefined;
-
-    private onPrevClick?: () => void;
-    private onNextClick?: () => void;
-    private onLanguageChange?: () => void;
-    private onTitleClick?: () => void;
+export class CalendarMonthHeader {
+    readonly widget: St.BoxLayout;
+    private readonly titleLabel: St.Label;
 
     constructor(
-        settings: Gio.Settings,
-        onPrevClick?: () => void,
-        onNextClick?: () => void,
-        onLanguageChange?: () => void,
-        onTitleClick?: () => void,
+        onPrevClick: () => void,
+        onNextClick: () => void,
+        onTitleClick: () => void,
     ) {
-        super(settings);
-        this.onPrevClick = onPrevClick;
-        this.onNextClick = onNextClick;
-        this.onLanguageChange = onLanguageChange;
-        this.onTitleClick = onTitleClick;
+        this.widget = new St.BoxLayout({
+            orientation: Clutter.Orientation.HORIZONTAL,
+            style_class: "calendar-month-header",
+        });
 
-        // Initial render
-        this.render({ force: true });
-    }
-
-    /**
-     * Initial render - called once during construction
-     */
-    protected renderInitial(): void {
-        this.withErrorHandling(() => {
-            // Create main container
-            this.outer = new St.BoxLayout({
-                orientation: Clutter.Orientation.HORIZONTAL,
-                style_class: "calendar-month-header",
-            });
-
-            this.createNavigationButtons();
-            this.createTitleLabel();
-
-            // Connect button events
-            if (this.prevBtn) {
-                this.prevBtn.connect("clicked", () => {
-                    this.emit("prev-clicked");
-                    this.onPrevClick?.();
-                });
-            }
-
-            if (this.nextBtn) {
-                this.nextBtn.connect("clicked", () => {
-                    this.emit("next-clicked");
-                    this.onNextClick?.();
-                });
-            }
-        }, "Failed to render CalendarMonthHeader initially");
-    }
-
-    /**
-     * Smart partial updates - called when settings change
-     */
-    protected renderUpdates(
-        _changes: Record<string, unknown>,
-        affectedParts: string[],
-    ): void {
-        this.withErrorHandling(() => {
-            if (
-                affectedParts.includes("month-name") ||
-                affectedParts.includes("year-number")
-            ) {
-                // Update the title when language or geez numerals change
-                if (this.onLanguageChange) {
-                    this.onLanguageChange();
-                }
-            }
-        }, "Failed to update CalendarMonthHeader");
-    }
-
-    private createNavigationButtons(): void {
-        if (!this.outer) return;
-
-        // Previous button
-        this.prevBtn = new St.Button({
+        const prevBtn = new St.Button({
             style_class: "calendar-nav-button",
             can_focus: true,
         });
-        this.prevBtn.set_child(
+        prevBtn.set_child(
             new St.Icon({
                 icon_name: "go-previous-symbolic",
                 style_class: "popup-menu-icon",
             }),
         );
+        prevBtn.connect("clicked", onPrevClick);
 
-        // Next button
-        this.nextBtn = new St.Button({
+        const nextBtn = new St.Button({
             style_class: "calendar-nav-button",
             can_focus: true,
         });
-        this.nextBtn.set_child(
+        nextBtn.set_child(
             new St.Icon({
                 icon_name: "go-next-symbolic",
                 style_class: "popup-menu-icon",
             }),
         );
+        nextBtn.connect("clicked", onNextClick);
 
-        this.outer.add_child(this.prevBtn);
-    }
-
-    private createTitleLabel(): void {
-        if (!this.outer) return;
-
-        // Title label - make it clickable
         this.titleLabel = new St.Label({
             text: "",
             style_class: "calendar-title calendar-title-clickable",
             reactive: true,
             can_focus: true,
         });
-
-        // Connect click event
         this.titleLabel.connect("button-press-event", () => {
-            this.emit("title-clicked");
-            this.onTitleClick?.();
+            onTitleClick();
             return Clutter.EVENT_STOP;
         });
-
-        // Add hover effect
         this.titleLabel.connect("enter-event", () => {
-            this.titleLabel?.add_style_class_name("calendar-title-hover");
+            this.titleLabel.add_style_class_name("calendar-title-hover");
         });
-
         this.titleLabel.connect("leave-event", () => {
-            this.titleLabel?.remove_style_class_name("calendar-title-hover");
+            this.titleLabel.remove_style_class_name("calendar-title-hover");
         });
 
-        // Add spacers and title
-        this.outer.add_child(new St.Widget({ x_expand: true }));
-        this.outer.add_child(this.titleLabel);
-        this.outer.add_child(new St.Widget({ x_expand: true }));
-        if (this.nextBtn) {
-            this.outer.add_child(this.nextBtn);
-        }
+        this.widget.add_child(prevBtn);
+        this.widget.add_child(new St.Widget({ x_expand: true }));
+        this.widget.add_child(this.titleLabel);
+        this.widget.add_child(new St.Widget({ x_expand: true }));
+        this.widget.add_child(nextBtn);
     }
 
-    public setTitle(title: string): void {
-        if (this.titleLabel) {
-            this.titleLabel.text = title;
-        }
-    }
-
-    public getWidget(): St.BoxLayout {
-        if (!this.outer) {
-            throw new Error("CalendarMonthHeader not initialized");
-        }
-        return this.outer;
-    }
-
-    destroy(): void {
-        // Clean up UI references
-        this.outer = undefined;
-        this.prevBtn = undefined;
-        this.nextBtn = undefined;
-        this.titleLabel = undefined;
-
-        // Call parent destroy to clean up events
-        super.destroy();
+    setTitle(title: string): void {
+        this.titleLabel.text = title;
     }
 }
