@@ -82,7 +82,7 @@ This extension uses a modern TypeScript-based development workflow with Bun and 
 ### Prerequisites
 
 - **Host**: Bun, OpenSSH client
-- **VM**: Fedora 41+ with GNOME on Xorg (for unsafe reload support)
+- **VM**: Fedora 42+ with GNOME on Xorg (for unsafe reload support)
 
 ### Development Scripts
 
