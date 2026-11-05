@@ -4,14 +4,14 @@
 
 This extension uses a modern TypeScript-based development workflow with Bun and automated build scripts. The recommended setup involves:
 
-- **Host machine**: Edit code, run linting/formatting, and manage versions
+- **Host machine**: Edit code, run linting/formatting and unit tests, and manage versions
 - **VM environment**: Test the extension in a controlled GNOME session
-- **Automated scripts**: Handle building, installation, VM setup, and development workflow
+- **Automated scripts**: Handle building, installation, VM setup, end-to-end tests, and development workflow
 
 ### Prerequisites
 
-- **Host**: Bun, OpenSSH client
-- **VM**: Linux distribution with GNOME and Wayland (I use Fedora)
+- **Host**: Bun, OpenSSH client, and Docker if you run the end-to-end tests without a VM
+- **VM**: Linux distribution with GNOME 48 or newer on Wayland (I use Fedora)
 
 ### Development Scripts
 
@@ -29,7 +29,7 @@ Handles the complete build process:
 
 #### `scripts/log.sh` - Log Monitoring
 Monitors GNOME Shell logs for debugging:
-- Captures logs from both `gnome-shell` and `gjs` processes
+- Follows the user journal, which carries both `gnome-shell` and the preferences window
 - Supports filtered output showing only extension-related logs
 - Automatically extracts extension name from `metadata.json`
 
@@ -46,6 +46,9 @@ Launches a development GNOME Shell session using `dbus-run-session`:
 - Uses `--devkit --wayland` on GNOME 49+
 - Falls back to `--nested --wayland` on older versions
 
+#### `scripts/vm-test.sh` - End-to-End Tests
+Runs the suites in `tests/vm` against a real, headless GNOME Shell, either in a VM over SSH or in a Docker container (see [End-to-End Tests](#end-to-end-tests)).
+
 #### `scripts/update-contrib.js` - Contributor Management
 Automatically updates contributors in the About page:
 - Fetches contributors from git history
@@ -57,6 +60,9 @@ Handles version bumping and releases:
 - Updates `package.json` and `metadata.json` versions
 - Creates git commits and tags
 - Supports semantic versioning
+
+#### `scripts/install.sh` - User Installation
+Installs a release (or a local build with `--local`) for users; see the README.
 
 ### Development Workflow
 
@@ -70,10 +76,12 @@ bun install  # Install all dependencies
 **Code Quality Tools:**
 ```bash
 bun format         # Format code with Biome
-bun lint          # Lint with safe fixes
-bun lint:fix      # Lint with unsafe fixes
-bun check         # Combined lint + format check
-bun check:types   # TypeScript type checking only
+bun lint           # Lint with safe fixes
+bun lint:fix       # Lint with unsafe fixes
+bun check          # Combined lint + format check
+bun check:types    # TypeScript type checking only
+bun test           # Unit tests
+bun shexli         # Review the built dist/ with shexli
 ```
 
 **Version Management:**
@@ -90,7 +98,7 @@ bun update-credits  # Update contributor list from git history
 #### 2. VM Environment Setup
 
 **Initial VM Configuration:**
-1. Install Fedora 41+ and log in
+1. Install Fedora 42+ and log in
 2. Enable **auto-login** so the session restarts automatically after GDM reloads:
 
    **GUI method**: Settings → Users → Automatic Login (ON)
@@ -162,18 +170,88 @@ bun log:all        # Monitor all GNOME Shell logs
    bun log
    ```
 
+### End-to-End Tests
+
+`bun test:vm` runs the suites in `tests/vm` against a real GNOME Shell, driven entirely from the host:
+
+1. Copies the current checkout to the target (rsync over SSH to `~/.cache/ethcal-vm-test/<checkout>/`, or into a container)
+2. Builds the extension there and installs it into throwaway XDG directories
+3. Starts an isolated **headless** GNOME Shell (`--headless --virtual-monitor`) on a private session bus, so your real session, extensions and settings are untouched and no GDM restart is needed
+4. Runs the suites through GNOME Shell's `org.gnome.Shell.Extensions` D-Bus API and the extension's settings, then fails a suite if the extension logged an error while it ran
+
+**With a VM:** one-time setup:
+```bash
+# In the VM
+sudo systemctl enable --now sshd
+
+# On the host
+ssh-copy-id -i ~/.ssh/your_key.pub user@vm-ip
+```
+
+Then add to `.env` (gitignored):
+```ini
+VM_TARGET=user@vm-ip
+VM_SSH_KEY=~/.ssh/your_key
+VM_SSH_PORT=22
+```
+
+**Without a VM (Docker):** `VM_TARGET=docker` runs the same suites in a container built from `tests/vm/docker/fedora-45.dockerfile` (GNOME Shell 51). No privileges or systemd are needed, and the first build downloads about 500 MB.
+
+**Usage:**
+```bash
+bun test:vm                             # Run every suite on VM_TARGET
+bun test:docker                         # Same as VM_TARGET=docker bun test:vm
+bun test:docker settings                # Only the settings suite
+bun test:docker position                # Tests whose name contains "position", plus the earlier tests of their suite
+VM_TARGET=docker:fedora-45 bun test:vm  # Pick an image from tests/vm/docker by name
+VM_TEST_KEEP=1 bun test:vm              # Keep the logs even when everything passes
+VM_TEST_DEBUG=1 bun test:vm             # Run the extension with debug logging
+```
+
+To test a PR, check it out in a git worktree and run `scripts/vm-test.sh` from there; each checkout gets its own copy on the VM.
+
+The checkout is copied into the container rather than mounted, so `DOCKER_HOST=ssh://user@host` runs it on another machine. Logs from failed or kept runs are copied to `build/vm-test-logs/<image>/`. Extra `docker build` flags go in `VM_DOCKER_BUILD_ARGS`, for example a proxy. `VM_DOCKER_IMAGE=<tag>` skips the build and runs the suites in an existing image.
+
+**Layout:**
+
+| Path | Contents |
+| --- | --- |
+| `tests/vm/suites/*.js` | One file per area (`lifecycle`, `prefs`, `settings`); every file here is picked up automatically |
+| `tests/vm/lib/harness.js` | `test`, `todo` (known gaps that don't fail the run), `skip`, `afterAll`, `allowLogged` (expected extension errors), `assert`, `waitFor`, `sleep` |
+| `tests/vm/lib/shell.js` | Extension state and preferences over D-Bus, the extension's `Gio.Settings`, and the shell log |
+| `tests/vm/runner.js` | Waits for the extension, runs the suites, and fails a suite if the extension logs errors while it runs |
+| `tests/vm/run.sh`, `tests/vm/session.sh` | Build, isolate and start the headless shell (target side) |
+| `tests/vm/docker/` | Container images for `VM_TARGET=docker`, one `<name>.dockerfile` per GNOME version, plus the entrypoint that starts the system bus |
+
+**Adding a test:** create `tests/vm/suites/<area>.js`, or add to an existing one:
+
+```js
+import { test, waitFor } from "../lib/harness.js";
+import { extensionSettings, loggedPositions } from "../lib/shell.js";
+
+test("the indicator moves to the right box", () => {
+    extensionSettings().set_string("status-bar-position", "right");
+    waitFor("the move", () => loggedPositions().at(-1) === "right");
+});
+```
+
+Tests run in order within a file, so later tests can build on earlier ones. EthCal has no D-Bus API of its own, so suites observe it through its debug log (the `settings` suite turns debug logging on) and through GNOME Shell's extension state.
+
+**Unit tests vs end-to-end tests:** `bun test` runs the fast host-side unit tests (`tests/unit/*.test.js`) for the logger, the settings readers and the calendar services, which import no `gi://` modules. `bun test:vm` runs the suites against a real shell. Never name a VM suite `*.test.js`: `bun test` would pick it up and fail on its GNOME-only imports.
+
 ### Project Structure
 
 - **`src/`**: TypeScript source files
 - **`dist/`**: Compiled JavaScript (auto-generated)
 - **`build/`**: Build artifacts and packages (gitignored)
 - **`scripts/`**: Development automation scripts
+- **`tests/`**: Unit tests and end-to-end suites
 - **`data/`**: Static resources (icons, UI files)
 
 ### Notes
 
 - Build artifacts are automatically placed in `build/` directory
 - The `dist/` directory contains compiled JavaScript when using TypeScript
-- Biome handles all linting and formatting; `dist/` is gitignored
-- Generated `scripts/dev-*.sh` files are gitignored — each developer/environment generates their own via `bun setup`
-- GDM restart (`systemctl restart gdm`) logs out the session — ensure **auto-login** is enabled in the VM so the session comes back without manual login
+- Biome handles all linting and formatting; `dist/` and `build/` are excluded
+- Generated `scripts/dev-*.sh` files are gitignored; each developer or environment generates their own via `bun setup`
+- GDM restart (`systemctl restart gdm`) logs out the session, so make sure **auto-login** is enabled in the VM so the session comes back without manual login
