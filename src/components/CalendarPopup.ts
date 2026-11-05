@@ -1,3 +1,4 @@
+import Clutter from "gi://Clutter";
 import St from "gi://St";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import Kenat from "../lib/kenat.js";
@@ -64,7 +65,7 @@ export class CalendarPopup extends ComponentBase {
             });
 
             this.outer = new St.BoxLayout({
-                vertical: true,
+                orientation: Clutter.Orientation.VERTICAL,
                 style_class: "calendar-popup",
             });
 

@@ -49,7 +49,7 @@ export class MonthYearPicker extends ComponentBase {
         this.withErrorHandling(() => {
             // Create main container - floating style
             this.outer = new St.BoxLayout({
-                vertical: false,
+                orientation: Clutter.Orientation.HORIZONTAL,
                 style_class: "floating-picker-container",
                 x_align: Clutter.ActorAlign.CENTER,
                 y_align: Clutter.ActorAlign.CENTER,
@@ -110,7 +110,7 @@ export class MonthYearPicker extends ComponentBase {
         });
 
         this.monthSlider = new St.BoxLayout({
-            vertical: true,
+            orientation: Clutter.Orientation.VERTICAL,
             style_class: "floating-month-slider",
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,
@@ -135,7 +135,7 @@ export class MonthYearPicker extends ComponentBase {
         });
 
         this.yearSlider = new St.BoxLayout({
-            vertical: true,
+            orientation: Clutter.Orientation.VERTICAL,
             style_class: "floating-year-slider",
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.CENTER,

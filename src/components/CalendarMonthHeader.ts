@@ -47,7 +47,7 @@ export class CalendarMonthHeader extends ComponentBase {
         this.withErrorHandling(() => {
             // Create main container
             this.outer = new St.BoxLayout({
-                vertical: false,
+                orientation: Clutter.Orientation.HORIZONTAL,
                 style_class: "calendar-month-header",
             });
 

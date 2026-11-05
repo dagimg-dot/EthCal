@@ -38,7 +38,7 @@ export class CalendarEventsSection extends ComponentBase {
         this.withErrorHandling(() => {
             // Create main container
             this.outer = new St.BoxLayout({
-                vertical: true,
+                orientation: Clutter.Orientation.VERTICAL,
                 style_class: "calendar-events",
             });
 
@@ -107,7 +107,7 @@ export class CalendarEventsSection extends ComponentBase {
         if (!this.outer) return;
 
         this.eventsList = new St.BoxLayout({
-            vertical: true,
+            orientation: Clutter.Orientation.VERTICAL,
             style_class: "calendar-events-list",
         });
 
@@ -174,7 +174,7 @@ export class CalendarEventsSection extends ComponentBase {
         if (events.length > 0) {
             events.forEach((event) => {
                 const eventRow = new St.BoxLayout({
-                    vertical: false,
+                    orientation: Clutter.Orientation.HORIZONTAL,
                     style_class: "calendar-event",
                 });
 
@@ -184,7 +184,7 @@ export class CalendarEventsSection extends ComponentBase {
                 });
 
                 const eventContent = new St.BoxLayout({
-                    vertical: true,
+                    orientation: Clutter.Orientation.VERTICAL,
                     style_class: "calendar-event-content",
                 });
 
