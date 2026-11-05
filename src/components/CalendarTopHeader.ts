@@ -1,3 +1,4 @@
+import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
 import St from "gi://St";
 import Kenat from "../lib/kenat.js";
@@ -32,7 +33,7 @@ export class CalendarTopHeader extends ComponentBase {
         this.withErrorHandling(() => {
             // Create main container
             this.outer = new St.BoxLayout({
-                vertical: true,
+                orientation: Clutter.Orientation.VERTICAL,
                 style_class: "calendar-top",
             });
 
@@ -65,7 +66,7 @@ export class CalendarTopHeader extends ComponentBase {
         if (!this.outer) return;
 
         const topRow = new St.BoxLayout({
-            vertical: false,
+            orientation: Clutter.Orientation.HORIZONTAL,
             style_class: "calendar-top-row",
         });
 
