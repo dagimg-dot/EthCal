@@ -1,13 +1,16 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.10/schema.json",
+  "files": {
+    "includes": ["**", "!!**/dist", "!!**/build"]
+  },
   "formatter": {
     "enabled": true,
     "useEditorconfig": true,
-    "includes": ["**/*.ts", "**/*.js", "**/*.css", "!dist/**"]
+    "includes": ["**/*.ts", "**/*.js", "**/*.css"]
   },
   "linter": {
     "enabled": true,
-    "includes": ["**/*.ts", "**/*.js", "**/*.css", "!dist/**"]
+    "includes": ["**/*.ts", "**/*.js", "**/*.css"]
   },
   "javascript": { "globals": ["imports"] }
 }
