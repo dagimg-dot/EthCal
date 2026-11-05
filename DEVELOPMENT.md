@@ -46,6 +46,9 @@ Launches a development GNOME Shell session using `dbus-run-session`:
 - Uses `--devkit --wayland` on GNOME 49+
 - Falls back to `--nested --wayland` on older versions
 
+#### `scripts/ui.sh` - GNOME Shell in a Window
+Builds the extension and opens it in a disposable GNOME Shell 51 that runs in Docker and shows as a window on your Wayland desktop (see [Seeing It in a Window](#seeing-it-in-a-window)).
+
 #### `scripts/vm-test.sh` - End-to-End Tests
 Runs the suites in `tests/vm` against a real, headless GNOME Shell, either in a VM over SSH or in a Docker container (see [End-to-End Tests](#end-to-end-tests)).
 
@@ -150,6 +153,11 @@ bun dev            # Build, install, and unsafe-reload (Xorg only, legacy)
 bun dev:nested     # Build, install, and start nested Wayland session
 ```
 
+**Without a VM:**
+```bash
+bun ui             # Build, then open GNOME Shell with the extension in a window
+```
+
 **Debugging:**
 ```bash
 bun log            # Monitor extension logs (filtered)
@@ -169,6 +177,16 @@ bun log:all        # Monitor all GNOME Shell logs
    ```bash
    bun log
    ```
+
+### Seeing It in a Window
+
+`bun ui` is the quickest way to look at a change without a VM. It needs Docker and a Wayland desktop:
+
+1. Builds `ethcal-vm-test:fedora-45` if it is missing, then `ethcal-vm-test:fedora-45-ui` on top of it from `scripts/ui/`, which adds Mutter's devkit viewer and Noto Sans Ethiopic so Amharic text renders
+2. Builds the extension
+3. Starts GNOME Shell 51 with `--devkit` in a container that gets your Wayland socket and GPU, with the extension installed and enabled in a fresh home directory
+
+The panel, the calendar popup and the preferences window work as in a real session, and the shell's log streams to the terminal. Press Ctrl+C in its terminal, or run `docker rm -f ethcal-ui`, to stop it; run `bun ui` again after a change. `UI_SIZE=1920x1080 bun ui` sets the screen size (default `1440x900`).
 
 ### End-to-End Tests
 
