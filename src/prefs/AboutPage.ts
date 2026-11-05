@@ -1,9 +1,10 @@
 import Adw from "gi://Adw";
 import Gio from "gi://Gio";
-import GLib from "gi://GLib";
 import GObject from "gi://GObject";
+import type Gtk from "gi://Gtk";
 import type { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
-import type { AboutPageChildren, Credit } from "../types/index.js";
+import { Icons } from "../lib/icons.js";
+import type { Credit } from "../types/index.js";
 import { getTemplate } from "../utils/getTemplate.js";
 
 export const CREDITS: Credit[] = [
@@ -57,72 +58,45 @@ export const AboutPage = GObject.registerClass(
         ],
     },
     class AboutPage extends Adw.PreferencesPage {
+        declare _extensionIcon: Gtk.Image;
+        declare _extensionName: Gtk.Label;
+        declare _extensionVersion: Gtk.Label;
+        declare _linkWebsite: Gtk.Button;
+        declare _linkIssues: Gtk.Button;
+        declare _creditsRow: Adw.ExpanderRow;
+        declare _legalRow: Adw.ExpanderRow;
+        declare _extensionLicense: Gtk.TextView;
+
         setMetadata(metadata: ExtensionPreferences["metadata"]) {
-            const children = this as unknown as AboutPageChildren;
+            Icons.load(metadata.path);
+            this._extensionIcon.set_from_gicon(Icons.get("ethcal"));
 
-            // Set the icon from the project's assets
-            const iconPath = GLib.uri_resolve_relative(
-                import.meta.url,
-                "../assets/icons/ethcal.svg",
-                GLib.UriFlags.NONE,
-            );
-            if (iconPath) {
-                try {
-                    const iconFile = Gio.File.new_for_uri(iconPath);
-                    children._extensionIcon.set_from_file(iconFile.get_path());
-                } catch (_error) {
-                    // Fallback to a generic icon if the custom icon fails to load
-                    children._extensionIcon.set_from_icon_name(
-                        "application-x-executable",
-                    );
-                }
-            }
+            this._extensionName.set_text(metadata.name);
 
-            // Set extension name
-            children._extensionName.set_text(metadata.name || "EthCal");
-
-            // Set version
-            const envSuffix =
-                typeof __ETHCAL_ENV_SUFFIX__ !== "undefined"
-                    ? __ETHCAL_ENV_SUFFIX__
-                    : "";
-            children._extensionVersion.set_text(
-                `v${metadata["version-name"] || metadata.version || "1.0.0"}${envSuffix}`,
+            this._extensionVersion.set_text(
+                `v${metadata["version-name"] || metadata.version}${__ETHCAL_ENV_SUFFIX__}`,
             );
 
-            // Set up website link
-            if (metadata.url) {
-                children._linkWebsite.connect("clicked", () => {
-                    Gio.AppInfo.launch_default_for_uri(
-                        metadata.url as string,
-                        null,
-                    );
+            const url = metadata.url;
+            if (url) {
+                this._linkWebsite.connect("clicked", () => {
+                    Gio.AppInfo.launch_default_for_uri(url, null);
+                });
+                this._linkIssues.connect("clicked", () => {
+                    Gio.AppInfo.launch_default_for_uri(`${url}/issues`, null);
                 });
             } else {
-                children._linkWebsite.visible = false;
+                this._linkWebsite.visible = false;
+                this._linkIssues.visible = false;
             }
 
-            // Set up issues link
-            if (metadata.url) {
-                children._linkIssues.connect("clicked", () => {
-                    Gio.AppInfo.launch_default_for_uri(
-                        `${metadata.url}/issues`,
-                        null,
-                    );
-                });
-            } else {
-                children._linkIssues.visible = false;
-            }
+            this._extensionLicense.buffer.set_text(LICENSE, -1);
 
-            // Set license text
-            children._extensionLicense.buffer.set_text(LICENSE, -1);
-
-            // Render credits
-            this.renderCredits(children);
+            this.renderCredits();
         }
 
-        private renderCredits(children: AboutPageChildren) {
-            const creditsExpander = children._creditsRow;
+        private renderCredits() {
+            const creditsExpander = this._creditsRow;
 
             CREDITS.forEach((credit) => {
                 const creditRow = new Adw.ActionRow({

@@ -2,83 +2,62 @@ import type Gio from "gi://Gio";
 
 const PROJECT_NAME = "EthCal";
 
-export enum LogLevel {
-    ERROR = 0,
-    WARN = 1,
-    INFO = 2,
-    DEBUG = 3,
-}
+/** GSettings `logging-level` string values in ComboRow and verbosity order. */
+export const LOGGING_LEVELS = ["error", "warn", "info", "debug"] as const;
+export type LoggingLevel = (typeof LOGGING_LEVELS)[number];
 
-const stringToLogLevel = (level: string): LogLevel => {
-    switch (level.toLowerCase()) {
-        case "error":
-            return LogLevel.ERROR;
-        case "warn":
-            return LogLevel.WARN;
-        case "info":
-            return LogLevel.INFO;
-        case "debug":
-            return LogLevel.DEBUG;
-        default:
-            return LogLevel.INFO;
-    }
+export const DEFAULT_LOG_LEVEL: LoggingLevel = "info";
+
+/** Index of a `logging-level` value in LOGGING_LEVELS, falling back to the default. */
+export const getVerbosity = (level: string): number => {
+    const normalized = level.toLowerCase();
+    const idx = LOGGING_LEVELS.findIndex((name) => name === normalized);
+    return idx >= 0 ? idx : LOGGING_LEVELS.indexOf(DEFAULT_LOG_LEVEL);
 };
 
-// Global settings reference for logger
-let currentLogLevel: LogLevel = LogLevel.INFO;
-let settingsRef: Gio.Settings | null = null;
-let loggingLevelChangedHandlerId: number | null = null;
+let currentVerbosity: number = getVerbosity(DEFAULT_LOG_LEVEL);
 
-export const setLogLevel = (level: string | LogLevel) => {
-    const newLogLevel =
-        typeof level === "string" ? stringToLogLevel(level) : level;
-    if (newLogLevel !== currentLogLevel) {
-        currentLogLevel = newLogLevel;
-    }
-};
-
-// Initialize logger with settings
 export const initializeLogger = (settings: Gio.Settings) => {
-    if (settingsRef && loggingLevelChangedHandlerId !== null) {
-        settingsRef.disconnect(loggingLevelChangedHandlerId);
-        loggingLevelChangedHandlerId = null;
-    }
-    settingsRef = settings;
-
-    // Set initial log level
     const levelString = settings.get_string("logging-level");
-    currentLogLevel = stringToLogLevel(levelString);
+    currentVerbosity = getVerbosity(levelString);
 
-    // Listen for log level changes
-    loggingLevelChangedHandlerId = settingsRef.connect(
+    settings.connectObject(
         "changed::logging-level",
-        (s) => {
-            const newLevelString = s.get_string("logging-level");
-            const newLogLevel = stringToLogLevel(newLevelString);
-            if (newLogLevel !== currentLogLevel) {
-                currentLogLevel = newLogLevel;
-                log(LogLevel.INFO, `Log level changed to: ${newLevelString}`);
-            }
+        () => {
+            const newLevelString = settings.get_string("logging-level");
+            currentVerbosity = getVerbosity(newLevelString);
+            info(`Log level changed to: ${newLevelString}`);
         },
+        logger,
     );
 
-    log(LogLevel.INFO, `Logger initialized with level: ${levelString}`);
+    info(`Logger initialized with level: ${levelString}`);
 };
 
-export const deinitializeLogger = (settings?: Gio.Settings) => {
-    const target = settings ?? settingsRef;
-    if (target && loggingLevelChangedHandlerId !== null) {
-        target.disconnect(loggingLevelChangedHandlerId);
-        loggingLevelChangedHandlerId = null;
-    }
-    settingsRef = null;
+export const deinitializeLogger = (settings: Gio.Settings) => {
+    settings.disconnectObject(logger);
 };
 
-// Single write function — all console output routes through here
+/** JS Errors and GLib.Error, which is not an Error subclass and keeps its message on the prototype. */
+const isErrorLike = (
+    data: unknown,
+): data is { message: string; stack?: unknown } =>
+    data instanceof Error ||
+    (typeof data === "object" &&
+        data !== null &&
+        "message" in data &&
+        typeof data.message === "string");
+
 const write = (prefix: string, message: string, data?: unknown) => {
     const lines = [`${prefix}: ${message}`];
-    if (data !== undefined) {
-        if (typeof data === "object" && data !== null) {
+    if (data !== undefined && data !== null) {
+        if (isErrorLike(data)) {
+            // String() keeps the message: SpiderMonkey stacks hold frames only
+            lines.push(`${prefix}:   ${String(data)}`);
+            if (typeof data.stack === "string" && data.stack) {
+                lines.push(`${prefix}:   ${data.stack.trimEnd()}`);
+            }
+        } else if (typeof data === "object") {
             Object.entries(data).forEach(([key, value]) => {
                 lines.push(`${prefix}:   ${key}: ${value}`);
             });
@@ -89,48 +68,33 @@ const write = (prefix: string, message: string, data?: unknown) => {
     console.log(lines.join("\n"));
 };
 
-const log = (level: LogLevel, message: string, data?: unknown) => {
-    if (level > currentLogLevel) return;
+const log = (level: LoggingLevel, message: string, data?: unknown) => {
+    if (LOGGING_LEVELS.indexOf(level) > currentVerbosity) return;
 
     const timestamp = new Date().toISOString();
-    const levelName = LogLevel[level];
-    const prefix = `[${PROJECT_NAME}] ${timestamp} ${levelName}`;
+    const prefix = `[${PROJECT_NAME}] ${timestamp} ${level.toUpperCase()}`;
     write(prefix, message, data);
 };
 
 const debug = (message: string, data?: unknown) => {
-    log(LogLevel.DEBUG, message, data);
+    log("debug", message, data);
 };
 
 const info = (message: string, data?: unknown) => {
-    log(LogLevel.INFO, message, data);
+    log("info", message, data);
 };
 
 const warn = (message: string, data?: unknown) => {
-    log(LogLevel.WARN, message, data);
+    log("warn", message, data);
 };
 
 const error = (message: string, err?: unknown) => {
-    const timestamp = new Date().toISOString();
-    const prefix = `[${PROJECT_NAME}] ${timestamp} ERROR`;
-    write(prefix, message, err ? String(err) : undefined);
+    log("error", message, err);
 };
 
-export interface LoggerInterface {
-    (message: unknown): void;
-    debug: (message: string, data?: unknown) => void;
-    info: (message: string, data?: unknown) => void;
-    warn: (message: string, data?: unknown) => void;
-    error: (message: string, err?: unknown) => void;
-}
-
-const baseLogger = ((message: unknown) => {
-    info(String(message));
-}) as LoggerInterface;
-
-baseLogger.debug = debug;
-baseLogger.info = info;
-baseLogger.warn = warn;
-baseLogger.error = error;
-
-export const logger = baseLogger;
+export const logger = {
+    debug,
+    info,
+    warn,
+    error,
+};

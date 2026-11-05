@@ -1,6 +1,3 @@
-import type Adw from "gi://Adw";
-import type Gtk from "gi://Gtk";
-
 export const SETTINGS = {
     KEYS: {
         STATUS_BAR_POSITION: "status-bar-position",
@@ -11,6 +8,7 @@ export const SETTINGS = {
         LOGGING_LEVEL: "logging-level",
     } as const,
 
+    /** ComboRow order for each string setting; the schema defaults are listed in DEFAULTS. */
     OPTIONS: {
         POSITION: ["left", "center", "right"] as const,
         FORMAT: [
@@ -21,63 +19,21 @@ export const SETTINGS = {
             "custom",
         ] as const,
         LANGUAGE: ["amharic", "english"] as const,
-        GEEZ_NUMERALS: [false, true] as const,
-        LOGGING_LEVEL: ["error", "warn", "info", "debug"] as const,
     } as const,
 
     DEFAULTS: {
         POSITION: "left",
         FORMAT: "full",
-        CUSTOM_FORMAT: "dday, mnam dd, year hh:mm",
         LANGUAGE: "amharic",
-        GEEZ_NUMERALS: false as boolean,
-        LOGGING_LEVEL: "info",
     } as const,
 } as const;
 
 export type PositionOption = (typeof SETTINGS.OPTIONS.POSITION)[number];
 export type FormatOption = (typeof SETTINGS.OPTIONS.FORMAT)[number];
 export type LanguageOption = (typeof SETTINGS.OPTIONS.LANGUAGE)[number];
-export type LoggingLevelOption =
-    (typeof SETTINGS.OPTIONS.LOGGING_LEVEL)[number];
-
-export interface StatusBarConfig {
-    position?: PositionOption;
-    format?: FormatOption;
-    showIcon?: boolean;
-}
-
-export interface CalendarConfig {
-    language?: LanguageOption;
-    showHolidays?: boolean;
-    weekStartsOn?: number;
-}
 
 export interface Credit {
     title: string;
     subtitle: string;
     github?: string;
-}
-
-export interface GeneralPageChildren {
-    _statusBarPosition: Adw.ComboRow;
-    _statusBarFormat: Adw.ComboRow;
-    _statusBarCustomFormat: Adw.EntryRow;
-    _customFormatHelpButton: Gtk.Button;
-    _calendarLanguage: Adw.ComboRow;
-    _useGeezNumerals: Adw.SwitchRow;
-    _loggingLevel: Adw.ComboRow;
-    _journalctlRow: Adw.ActionRow;
-    _copyLogsCommandButton: Gtk.Button;
-}
-
-export interface AboutPageChildren {
-    _extensionIcon: Gtk.Image;
-    _extensionName: Gtk.Label;
-    _extensionVersion: Gtk.Label;
-    _linkWebsite: Gtk.Button;
-    _linkIssues: Gtk.Button;
-    _creditsRow: Adw.ExpanderRow;
-    _legalRow: Adw.ExpanderRow;
-    _extensionLicense: Gtk.TextView;
 }

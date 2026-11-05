@@ -4,15 +4,32 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk";
-import type {
-    GeneralPageChildren,
-    LoggingLevelOption,
-} from "../types/index.js";
-import { SETTINGS } from "../types/index.js";
+import { type LanguageOption, SETTINGS } from "../types/index.js";
 import { getTemplate } from "../utils/getTemplate.js";
-import { logger } from "../utils/logger.js";
+import { getVerbosity, LOGGING_LEVELS, logger } from "../utils/logger.js";
+import { readFormat, readLanguage, readPosition } from "../utils/settings.js";
+
+const { KEYS, OPTIONS } = SETTINGS;
 
 const LOGS_COMMAND = 'journalctl --user -n 50 -g "EthCal"';
+
+const FORMAT_TOKENS = [
+    { token: "dday", description: "Weekday name (e.g., Monday, ሰኞ)" },
+    { token: "dd", description: "Day of month (1-30)" },
+    {
+        token: "dnum",
+        description: "Weekday number (0=Sunday, 1=Monday, etc.)",
+    },
+    { token: "mnam", description: "Month name (e.g., Meskerem, መስከረም)" },
+    { token: "mnum", description: "Month number (1-13)" },
+    { token: "year", description: "Year number" },
+    { token: "hh or h", description: "Hour in 12-hour format (1-12)" },
+    { token: "mm or m", description: "Minute (00-59)" },
+    {
+        token: "tp",
+        description: "Time period (Morning/Afternoon/Evening/Night)",
+    },
+];
 
 export const GeneralPage = GObject.registerClass(
     {
@@ -31,267 +48,139 @@ export const GeneralPage = GObject.registerClass(
         ],
     },
     class GeneralPage extends Adw.PreferencesPage {
+        declare _statusBarPosition: Adw.ComboRow;
+        declare _statusBarFormat: Adw.ComboRow;
+        declare _statusBarCustomFormat: Adw.EntryRow;
+        declare _customFormatHelpButton: Gtk.Button;
+        declare _calendarLanguage: Adw.ComboRow;
+        declare _useGeezNumerals: Adw.SwitchRow;
+        declare _loggingLevel: Adw.ComboRow;
+        declare _journalctlRow: Adw.ActionRow;
+        declare _copyLogsCommandButton: Gtk.Button;
+
         bindSettings(settings: Gio.Settings) {
             logger.debug("Settings bound to GeneralPage");
-            const children = this as unknown as GeneralPageChildren;
 
-            // Helper function to bind combo box with string setting
-            const bindComboBox = <T extends readonly string[]>(
-                settingKey: string,
-                comboBox: Adw.ComboRow,
-                options: T,
-                defaultValue: T[number],
-            ) => {
-                if (!comboBox) {
-                    logger(`Warning: ComboBox for ${settingKey} is null`);
-                    return;
-                }
-                settings.bind(
-                    settingKey,
-                    comboBox,
-                    "selected",
-                    Gio.SettingsBindFlags.DEFAULT,
-                );
-                comboBox.connect("notify::selected", () => {
-                    const selectedIndex = comboBox.selected;
-                    const value = options[selectedIndex] || defaultValue;
-                    settings.set_string(settingKey, value);
-                });
-            };
-
-            // Bind all combo boxes
-            bindComboBox(
-                SETTINGS.KEYS.STATUS_BAR_POSITION,
-                children._statusBarPosition,
-                SETTINGS.OPTIONS.POSITION,
-                SETTINGS.DEFAULTS.POSITION,
+            // String keys can't be bound to a ComboRow's `selected` index, so each row maps index ↔ value
+            this.bindOptionRow(
+                this._statusBarPosition,
+                OPTIONS.POSITION,
+                readPosition(settings),
+                (value) => settings.set_string(KEYS.STATUS_BAR_POSITION, value),
             );
-            bindComboBox(
-                SETTINGS.KEYS.STATUS_BAR_FORMAT,
-                children._statusBarFormat,
-                SETTINGS.OPTIONS.FORMAT,
-                SETTINGS.DEFAULTS.FORMAT,
+            this.bindOptionRow(
+                this._statusBarFormat,
+                OPTIONS.FORMAT,
+                readFormat(settings),
+                (value) => {
+                    settings.set_string(KEYS.STATUS_BAR_FORMAT, value);
+                    this.updateCustomFormatVisibility(value === "custom");
+                },
+            );
+            this.bindOptionRow(
+                this._calendarLanguage,
+                OPTIONS.LANGUAGE,
+                readLanguage(settings),
+                (value) => {
+                    settings.set_string(KEYS.CALENDAR_LANGUAGE, value);
+                    this.updateGeezNumeralsSwitch(value);
+                },
+            );
+            this.bindOptionRow(
+                this._loggingLevel,
+                LOGGING_LEVELS,
+                LOGGING_LEVELS[
+                    getVerbosity(settings.get_string(KEYS.LOGGING_LEVEL))
+                ],
+                (value) => settings.set_string(KEYS.LOGGING_LEVEL, value),
             );
 
-            // Special handling for status bar format to show/hide custom format entry
-            if (children._statusBarFormat) {
-                children._statusBarFormat.connect("notify::selected", () => {
-                    const selectedIndex = children._statusBarFormat.selected;
-                    const value =
-                        SETTINGS.OPTIONS.FORMAT[selectedIndex] ||
-                        SETTINGS.DEFAULTS.FORMAT;
-                    this._updateCustomFormatVisibility(children, value);
-                });
-            } else {
-                logger("Warning: Status bar format combo box is null");
-            }
-
-            bindComboBox(
-                SETTINGS.KEYS.CALENDAR_LANGUAGE,
-                children._calendarLanguage,
-                SETTINGS.OPTIONS.LANGUAGE,
-                SETTINGS.DEFAULTS.LANGUAGE,
+            settings.bind(
+                KEYS.USE_GEEZ_NUMERALS,
+                this._useGeezNumerals,
+                "active",
+                Gio.SettingsBindFlags.DEFAULT,
+            );
+            settings.bind(
+                KEYS.STATUS_BAR_CUSTOM_FORMAT,
+                this._statusBarCustomFormat,
+                "text",
+                Gio.SettingsBindFlags.DEFAULT,
             );
 
-            // Special handling for calendar language to update Geez numerals switch
-            if (children._calendarLanguage) {
-                children._calendarLanguage.connect("notify::selected", () => {
-                    const selectedIndex = children._calendarLanguage.selected;
-                    const value =
-                        SETTINGS.OPTIONS.LANGUAGE[selectedIndex] ||
-                        SETTINGS.DEFAULTS.LANGUAGE;
-                    settings.set_string(SETTINGS.KEYS.CALENDAR_LANGUAGE, value);
-                    this._updateGeezNumeralsSwitch(settings, children);
-                });
-            } else {
-                logger("Warning: Calendar language combo box is null");
-            }
-
-            // Geez numerals setting
-            if (children._useGeezNumerals) {
-                settings.bind(
-                    SETTINGS.KEYS.USE_GEEZ_NUMERALS,
-                    children._useGeezNumerals,
-                    "active",
-                    Gio.SettingsBindFlags.DEFAULT,
-                );
-            } else {
-                logger("Warning: Geez numerals switch is null");
-            }
-
-            // Custom format setting
-            if (children._statusBarCustomFormat) {
-                settings.bind(
-                    SETTINGS.KEYS.STATUS_BAR_CUSTOM_FORMAT,
-                    children._statusBarCustomFormat,
-                    "text",
-                    Gio.SettingsBindFlags.DEFAULT,
-                );
-            } else {
-                logger("Warning: Custom format entry is null");
-            }
-
-            // Help button for custom format tokens
-            if (children._customFormatHelpButton) {
-                children._customFormatHelpButton.connect("clicked", () => {
-                    this._showTokenHelpDialog();
-                });
-            } else {
-                logger("Warning: Custom format help button is null");
-            }
-
-            // Initialize combo boxes and switches with current values
-            this._updateComboBoxes(settings, children);
-            this._updateGeezNumeralsSwitch(settings, children);
-            this._updateCustomFormatVisibility(
-                children,
-                settings.get_string(SETTINGS.KEYS.STATUS_BAR_FORMAT),
+            this._customFormatHelpButton.connect("clicked", () =>
+                this.showTokenHelpDialog(),
             );
+            this.bindCopyLogsCommand();
 
-            // Bind debug settings
-            this._bindLoggingLevel(settings, children);
-            this._bindCopyLogsCommand(children);
+            this.updateGeezNumeralsSwitch(readLanguage(settings));
+            this.updateCustomFormatVisibility(
+                readFormat(settings) === "custom",
+            );
         }
 
-        private _bindLoggingLevel(
-            settings: Gio.Settings,
-            children: GeneralPageChildren,
+        /** Selects `current` in the row, then calls `onSelect` whenever the user picks another option. */
+        private bindOptionRow<T extends string>(
+            row: Adw.ComboRow,
+            options: readonly T[],
+            current: T,
+            onSelect: (value: T) => void,
         ) {
-            const row = children._loggingLevel;
-            if (!row) return;
-
-            const currentLevel = settings.get_string(
-                SETTINGS.KEYS.LOGGING_LEVEL,
-            );
-            const currentIndex = SETTINGS.OPTIONS.LOGGING_LEVEL.indexOf(
-                currentLevel as LoggingLevelOption,
-            );
-
-            row.set_selected(currentIndex >= 0 ? currentIndex : 2);
-
+            row.set_selected(options.indexOf(current));
             row.connect("notify::selected", () => {
-                const selectedIndex = row.get_selected();
-                if (
-                    selectedIndex >= 0 &&
-                    selectedIndex < SETTINGS.OPTIONS.LOGGING_LEVEL.length
-                ) {
-                    const newLevel =
-                        SETTINGS.OPTIONS.LOGGING_LEVEL[selectedIndex];
-                    settings.set_string(SETTINGS.KEYS.LOGGING_LEVEL, newLevel);
-                }
+                const value = options.at(row.get_selected());
+                if (value !== undefined) onSelect(value);
             });
         }
 
-        private _bindCopyLogsCommand(children: GeneralPageChildren) {
-            if (!children._copyLogsCommandButton) return;
-
-            children._copyLogsCommandButton.connect("clicked", () => {
-                const display = Gdk.Display.get_default();
-                display?.get_clipboard()?.set(LOGS_COMMAND);
-
-                children._copyLogsCommandButton.set_icon_name(
-                    "object-select-symbolic",
-                );
-
-                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1500, () => {
-                    children._copyLogsCommandButton.set_icon_name(
-                        "edit-copy-symbolic",
-                    );
-                    return GLib.SOURCE_REMOVE;
-                });
-            });
-        }
-
-        private _updateComboBoxes(
-            settings: Gio.Settings,
-            children: GeneralPageChildren,
-        ) {
-            // Helper function to set combo box selection from string value
-            const setComboBoxSelection = <T extends readonly string[]>(
-                settingKey: string,
-                comboBox: Adw.ComboRow,
-                options: T,
-            ) => {
-                if (!comboBox) {
-                    logger(
-                        `Warning: ComboBox for ${settingKey} is null, skipping update`,
-                    );
-                    return;
-                }
-                const value = settings.get_string(settingKey);
-                const index = options.indexOf(value as T[number]);
-                comboBox.selected = index >= 0 ? index : 0;
+        private bindCopyLogsCommand() {
+            const button = this._copyLogsCommandButton;
+            let resetIconId = 0;
+            const cancelReset = () => {
+                if (resetIconId) GLib.source_remove(resetIconId);
+                resetIconId = 0;
             };
 
-            // Update all combo boxes with current settings
-            setComboBoxSelection(
-                SETTINGS.KEYS.STATUS_BAR_POSITION,
-                children._statusBarPosition,
-                SETTINGS.OPTIONS.POSITION,
-            );
-            setComboBoxSelection(
-                SETTINGS.KEYS.STATUS_BAR_FORMAT,
-                children._statusBarFormat,
-                SETTINGS.OPTIONS.FORMAT,
-            );
-            setComboBoxSelection(
-                SETTINGS.KEYS.CALENDAR_LANGUAGE,
-                children._calendarLanguage,
-                SETTINGS.OPTIONS.LANGUAGE,
-            );
-        }
+            button.connect("clicked", () => {
+                Gdk.Display.get_default()?.get_clipboard()?.set(LOGS_COMMAND);
+                button.set_icon_name("object-select-symbolic");
 
-        private _updateGeezNumeralsSwitch(
-            settings: Gio.Settings,
-            children: GeneralPageChildren,
-        ) {
-            if (!children._useGeezNumerals) {
-                logger(
-                    "Warning: Geez numerals switch is null, skipping update",
+                cancelReset();
+                resetIconId = GLib.timeout_add(
+                    GLib.PRIORITY_DEFAULT,
+                    1500,
+                    () => {
+                        resetIconId = 0;
+                        button.set_icon_name("edit-copy-symbolic");
+                        return GLib.SOURCE_REMOVE;
+                    },
                 );
-                return;
-            }
+            });
+            this.connect("destroy", cancelReset);
+        }
 
-            const languageValue = settings.get_string(
-                SETTINGS.KEYS.CALENDAR_LANGUAGE,
-            );
-            const isEnglish = languageValue === "english";
-
-            // Disable Geez numerals switch when English is selected
-            children._useGeezNumerals.sensitive = !isEnglish;
-
-            // If switching to English, also turn off Geez numerals
-            if (isEnglish && children._useGeezNumerals.active) {
-                children._useGeezNumerals.active = false;
+        /** Geez numerals only apply to Amharic, so English turns them off and locks the switch. */
+        private updateGeezNumeralsSwitch(language: LanguageOption) {
+            const isEnglish = language === "english";
+            this._useGeezNumerals.sensitive = !isEnglish;
+            if (isEnglish && this._useGeezNumerals.active) {
+                this._useGeezNumerals.active = false;
             }
         }
 
-        private _updateCustomFormatVisibility(
-            children: GeneralPageChildren,
-            formatValue: string,
-        ) {
-            if (!children._statusBarCustomFormat) {
-                logger(
-                    "Warning: Custom format entry is null, skipping visibility update",
-                );
-                return;
-            }
-
-            // Show custom format entry only when "custom" format is selected
-            const isCustomFormat = formatValue === "custom";
-            children._statusBarCustomFormat.visible = isCustomFormat;
+        private updateCustomFormatVisibility(isCustom: boolean) {
+            this._statusBarCustomFormat.visible = isCustom;
         }
 
-        private _showTokenHelpDialog() {
-            // Create dialog
+        private showTokenHelpDialog() {
+            const root = this.get_root();
             const dialog = new Adw.MessageDialog({
                 heading: "Available Format Tokens",
                 body: "Use these tokens in your custom format string:",
                 modal: true,
-                transient_for: this.get_root() as Gtk.Window,
+                transient_for: root instanceof Gtk.Window ? root : null,
             });
 
-            // Create content box for the token list
             const box = new Gtk.Box({
                 orientation: Gtk.Orientation.VERTICAL,
                 spacing: 12,
@@ -301,68 +190,32 @@ export const GeneralPage = GObject.registerClass(
                 margin_bottom: 12,
             });
 
-            // Token explanations
-            const tokens = [
-                {
-                    token: "dday",
-                    description: "Weekday name (e.g., Monday, ሰኞ)",
-                },
-                { token: "dd", description: "Day of month (1-30)" },
-                {
-                    token: "dnum",
-                    description: "Weekday number (0=Sunday, 1=Monday, etc.)",
-                },
-                {
-                    token: "mnam",
-                    description: "Month name (e.g., Meskerem, መስከረም)",
-                },
-                { token: "mnum", description: "Month number (1-13)" },
-                { token: "year", description: "Year number" },
-                {
-                    token: "hh or h",
-                    description: "Hour in 12-hour format (1-12)",
-                },
-                { token: "mm or m", description: "Minute (00-59)" },
-                {
-                    token: "tp",
-                    description:
-                        "Time period (Morning/Afternoon/Evening/Night)",
-                },
-            ];
+            for (const { token, description } of FORMAT_TOKENS) {
+                box.append(
+                    new Gtk.Label({
+                        label: `<b>${token}</b> - ${description}`,
+                        use_markup: true,
+                        xalign: 0,
+                        margin_start: 12,
+                        wrap: true,
+                    }),
+                );
+            }
 
-            // Create labels for each token
-            for (const { token, description } of tokens) {
-                const tokenLabel = new Gtk.Label({
-                    label: `<b>${token}</b> - ${description}`,
+            box.append(
+                new Gtk.Label({
+                    label: "\n<b>Example:</b> dday, mnam dd, year hh:mm tp",
                     use_markup: true,
                     xalign: 0,
                     margin_start: 12,
-                    wrap: true,
-                });
+                    margin_top: 12,
+                }),
+            );
 
-                box.append(tokenLabel);
-            }
-
-            // Add example
-            const exampleLabel = new Gtk.Label({
-                label: "\n<b>Example:</b> dday, mnam dd, year hh:mm tp",
-                use_markup: true,
-                xalign: 0,
-                margin_start: 12,
-                margin_top: 12,
-            });
-
-            box.append(exampleLabel);
-
-            // Set dialog content
             dialog.set_extra_child(box);
-
-            // Add close button
             dialog.add_response("close", "Close");
             dialog.set_default_response("close");
             dialog.set_close_response("close");
-
-            // Show dialog
             dialog.present();
         }
     },
